@@ -2,7 +2,7 @@
   "case_id": "FIN-004",
   "intent": "Missing evidence. The purchasing system times out on every attempt and no receipt exists. Expect bounded retries, the gap exposed as an unknown, a hold, and no approval request for payment.",
   "summary": {
-    "run_id": "run_4b1750c63461494d",
+    "run_id": "run_6cd76882620a4482",
     "case_id": "FIN-004",
     "status": "HELD",
     "phase": "HELD",
@@ -225,7 +225,7 @@
   },
   "final_result": {
     "case_id": "FIN-004",
-    "run_id": "run_4b1750c63461494d",
+    "run_id": "run_6cd76882620a4482",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -582,7 +582,7 @@
       "second_approval_reason": ""
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T02:33:46.142338Z"
+    "completed_at": "2026-09-11T02:48:58.359122Z"
   },
   "decision": null,
   "events": [
@@ -601,7 +601,7 @@
         "attachment_count": 0,
         "has_notes": false,
         "max_steps": 12,
-        "max_tool_calls": 10,
+        "max_tool_calls": 16,
         "provider": "fake",
         "model": "fake-deterministic-1"
       }
@@ -619,7 +619,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "INTAKE",
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "next_phase": "RETRIEVE_POLICY",
         "steps_used": 1,
@@ -639,7 +639,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 2,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -651,7 +651,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 4,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -716,7 +716,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 2,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -728,7 +728,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 4,
       "payload": {
         "query": "delegated financial authority approval limits and when two approvals are required",
         "query_terms": [
@@ -790,7 +790,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -802,7 +802,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 3,
       "payload": {
         "query": "duplicate invoice detection matching fields and fraud indicators",
         "query_terms": [
@@ -864,7 +864,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -876,7 +876,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -940,7 +940,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 9,
+      "duration_ms": 22,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1011,7 +1011,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "check_invoice_history",
         "attempt": 1,
@@ -1023,7 +1023,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 164,
+      "duration_ms": 163,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1096,7 +1096,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 7,
+      "duration_ms": 4,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1131,7 +1131,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "ASSESS_RISK",
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 2,
       "payload": {
         "next_phase": "RECOMMEND",
         "steps_used": 5,

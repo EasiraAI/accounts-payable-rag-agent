@@ -30,7 +30,10 @@ consume the transport budget and produce a misleading "provider unavailable".
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from anthropic.types import MessageParam, ToolChoiceToolParam, ToolParam
 
 from pydantic import BaseModel, ValidationError
 
@@ -86,15 +89,23 @@ class AnthropicClient:
     ) -> tuple[dict[str, Any], int, int]:
         """One request. Returns the tool input plus token counts."""
         from anthropic import APIError, APIStatusError
+        from anthropic.types import ToolUseBlock
 
         try:
+            # The tool definition is built from a pydantic JSON schema at runtime, so it
+            # cannot be expressed as the SDK's TypedDict literal. Cast at the boundary and
+            # keep the construction in one place, rather than loosening the adapter's own
+            # type discipline.
+            tool_param = cast("ToolParam", self._tool_definition(schema))
+            tool_choice = cast("ToolChoiceToolParam", {"type": "tool", "name": _RESPONSE_TOOL_NAME})
+            messages = [cast("MessageParam", {"role": "user", "content": user})]
             response = self._client.messages.create(
                 model=self._settings.llm_model,
                 max_tokens=max_tokens,
                 system=system,
-                tools=[self._tool_definition(schema)],
-                tool_choice={"type": "tool", "name": _RESPONSE_TOOL_NAME},
-                messages=[{"role": "user", "content": user}],
+                tools=[tool_param],
+                tool_choice=tool_choice,
+                messages=messages,
             )
         except APIStatusError as error:
             raise ModelUnavailable(
@@ -104,18 +115,23 @@ class AnthropicClient:
         except APIError as error:
             raise ModelUnavailable(f"provider call failed: {error}") from error
 
+        # Narrowed by isinstance rather than by inspecting a "type" string. A response may
+        # carry any of a dozen block kinds, and only ToolUseBlock has the name and input
+        # attributes read below; checking the class means a future block kind cannot be
+        # mistaken for a tool call.
         for block in response.content:
-            if getattr(block, "type", None) == "tool_use" and block.name == _RESPONSE_TOOL_NAME:
-                payload = block.input
-                if not isinstance(payload, dict):
-                    raise ModelOutputInvalid(
-                        schema.__name__, f"tool input was {type(payload).__name__}, not an object"
-                    )
-                return (
-                    payload,
-                    response.usage.input_tokens,
-                    response.usage.output_tokens,
+            if not isinstance(block, ToolUseBlock) or block.name != _RESPONSE_TOOL_NAME:
+                continue
+            payload = block.input
+            if not isinstance(payload, dict):
+                raise ModelOutputInvalid(
+                    schema.__name__, f"tool input was {type(payload).__name__}, not an object"
                 )
+            return (
+                payload,
+                response.usage.input_tokens,
+                response.usage.output_tokens,
+            )
 
         # Forced tool use should make this unreachable. Raising rather than falling back to
         # text parsing keeps the "no free-text path" guarantee true even if the provider's

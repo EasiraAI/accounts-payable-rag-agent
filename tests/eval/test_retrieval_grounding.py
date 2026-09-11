@@ -352,11 +352,7 @@ class TestGoldenSet:
     def test_golden_set_covers_the_policies_the_agent_relies_on(self) -> None:
         """A golden set that omits a policy the engine cites is not measuring the system."""
         queries = load_golden_set(GOLDEN_PATH)
-        covered = {
-            reference.split()[0]
-            for query in queries
-            for reference in query["accept"]  # type: ignore[union-attr]
-        }
+        covered = {reference.split()[0] for query in queries for reference in query.accept}
         for required in [
             "FIN-POL-001",
             "FIN-POL-002",

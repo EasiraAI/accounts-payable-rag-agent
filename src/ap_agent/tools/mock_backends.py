@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Final
@@ -144,7 +144,9 @@ class MockBackends:
         # "not_found" is handled by the lookup itself returning nothing.
 
     def _is_not_found_profile(self, tool_name: str) -> bool:
-        return self._faults.get(tool_name) == "not_found"
+        # bool() rather than a bare comparison: the profile map is loaded from JSON, so its
+        # values are untyped as far as a checker is concerned.
+        return bool(self._faults.get(tool_name) == "not_found")
 
     @property
     def attempt_counts(self) -> dict[str, int]:
@@ -198,7 +200,7 @@ class MockBackends:
                     receipt_id=receipt["receipt_id"],
                     po_line_number=receipt["po_line_number"],
                     quantity_received=Decimal(receipt["quantity_received"]),
-                    received_date=_to_date(receipt["received_date"]),  # type: ignore[arg-type]
+                    received_date=date.fromisoformat(_to_date(receipt["received_date"])),
                     receipted_by=receipt["receipted_by"],
                 )
                 for receipt in record.get("receipts", [])
@@ -224,7 +226,7 @@ class MockBackends:
                 vendor_id=record["vendor_id"],
                 currency=record["currency"],
                 gross_amount=Decimal(record["gross_amount"]),
-                invoice_date=_to_date(record["invoice_date"]),  # type: ignore[arg-type]
+                invoice_date=date.fromisoformat(_to_date(record["invoice_date"])),
                 status=record["status"],
                 po_reference=record.get("po_reference"),
                 attachment_hashes=record.get("attachment_hashes", []),
@@ -251,7 +253,7 @@ class MockBackends:
             delegator_id=record["delegator_id"],
             delegator_role=record["delegator_role"],
             scope=record["scope"],
-            starts_on=_to_date(record["starts_on"]),  # type: ignore[arg-type]
-            ends_on=_to_date(record["ends_on"]),  # type: ignore[arg-type]
+            starts_on=date.fromisoformat(_to_date(record["starts_on"])),
+            ends_on=date.fromisoformat(_to_date(record["ends_on"])),
             revoked=record.get("revoked", False),
         )

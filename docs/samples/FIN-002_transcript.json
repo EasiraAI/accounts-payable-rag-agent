@@ -2,7 +2,7 @@
   "case_id": "FIN-002",
   "intent": "Duplicate invoice. Invoice number and amount match an already-paid record. Expect REJECT_DUPLICATE with both record identifiers cited, and no proposal to pay.",
   "summary": {
-    "run_id": "run_64c11de694a94835",
+    "run_id": "run_afe1fefb27e44b15",
     "case_id": "FIN-002",
     "status": "AWAITING_APPROVAL",
     "phase": "AWAITING_APPROVAL",
@@ -344,7 +344,7 @@
   },
   "final_result": {
     "case_id": "FIN-002",
-    "run_id": "run_64c11de694a94835",
+    "run_id": "run_afe1fefb27e44b15",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -970,7 +970,7 @@
         "attachment_count": 0,
         "has_notes": true,
         "max_steps": 12,
-        "max_tool_calls": 10,
+        "max_tool_calls": 16,
         "provider": "fake",
         "model": "fake-deterministic-1"
       }
@@ -1020,7 +1020,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1085,7 +1085,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1309,7 +1309,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 11,
+      "duration_ms": 13,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1377,7 +1377,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "supplier payment instructions urgent bank account change new account details",
         "query_terms": [
@@ -1439,7 +1439,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 6,
+      "duration_ms": 9,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1512,7 +1512,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 5,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1621,7 +1621,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_466b87dd74744c4c",
+        "approval_id": "apr_9670fd682ac547e7",
         "requested_outcome": "REJECT_DUPLICATE",
         "amount": "9240.00",
         "currency": "AUD",
@@ -1637,7 +1637,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 6,
       "payload": {
         "next_phase": "AWAITING_APPROVAL",
         "steps_used": 6,

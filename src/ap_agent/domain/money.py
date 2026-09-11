@@ -31,6 +31,24 @@ MONEY_EXPONENT = Decimal("0.01")
 MONEY_ROUNDING = ROUND_HALF_UP
 
 
+def reject_float_value(value: object, name: str) -> None:
+    """Raise if ``value`` is a float.
+
+    Takes ``object`` rather than the declared parameter type on purpose. Guarding a
+    parameter already annotated ``Decimal`` reads to a type checker as an unreachable
+    branch, because ``Decimal`` and ``float`` have disjoint bases. The guard is still
+    worth having: annotations are not enforced at runtime, and the callers that matter
+    most here are the ones passing values from JSON, a spreadsheet or a model response.
+    Widening the parameter keeps the check honest and the type checker satisfied.
+    """
+    if isinstance(value, float):
+        raise TypeError(
+            f"{name} must be a Decimal, an int or a string, never a float: binary floating "
+            "point cannot represent 0.1, so a threshold comparison built on it fails "
+            "unpredictably at exactly the boundary where it matters"
+        )
+
+
 def _reject_float(value: Any) -> Any:
     """Refuse binary floating point in monetary positions.
 
@@ -109,8 +127,7 @@ class Money(BaseModel):
         return Money(amount=self.amount - other.amount, currency=self.currency)
 
     def __mul__(self, factor: Decimal | int) -> Money:
-        if isinstance(factor, float):
-            raise TypeError("multiply Money by Decimal or int, never float")
+        reject_float_value(factor, "factor")
         return Money(amount=self.amount * Decimal(str(factor)), currency=self.currency)
 
     def __neg__(self) -> Money:
@@ -147,8 +164,7 @@ class Money(BaseModel):
 
 def percent_of(value: Money, percent: Decimal) -> Money:
     """``percent`` of ``value``, quantized. ``percent`` is expressed as e.g. Decimal("1") for 1%."""
-    if isinstance(percent, float):
-        raise TypeError("percent must be Decimal, never float")
+    reject_float_value(percent, "percent")
     return Money(amount=value.amount * percent / Decimal("100"), currency=value.currency)
 
 

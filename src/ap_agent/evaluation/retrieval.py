@@ -100,17 +100,35 @@ class RetrievalReport(BaseModel):
         )
 
 
-def load_golden_set(path: Path) -> list[dict[str, object]]:
+class GoldenQuery(BaseModel):
+    """One golden-set entry.
+
+    Validated on load rather than read as a raw mapping, so a malformed golden set fails
+    with a field-level message instead of an attribute error partway through a measurement
+    run.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    text: str
+    #: Every section that answers the query. A hit is any of them, because several corpus
+    #: sections legitimately answer some questions.
+    accept: list[str] = Field(min_length=1)
+    purpose: str = ""
+
+
+def load_golden_set(path: Path) -> list[GoldenQuery]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    queries = payload["queries"]
+    queries = payload.get("queries")
     if not isinstance(queries, list) or not queries:
         raise ValueError(f"no queries in golden set {path}")
-    return queries
+    return [GoldenQuery.model_validate(entry) for entry in queries]
 
 
 def evaluate_retrieval(
     retriever: Retriever,
-    golden_queries: list[dict[str, object]],
+    golden_queries: list[GoldenQuery],
     *,
     top_k: int = 6,
 ) -> RetrievalReport:
@@ -121,9 +139,9 @@ def evaluate_retrieval(
     missing_metadata: list[str] = []
 
     for entry in golden_queries:
-        query_id = str(entry["id"])
-        text = str(entry["text"])
-        accept = [str(item) for item in entry["accept"]]  # type: ignore[union-attr]
+        query_id = entry.id
+        text = entry.text
+        accept = entry.accept
 
         results = retriever.search_policy(text, top_k=top_k)
         references = [f"{chunk.document_id} {chunk.section}" for chunk in results]

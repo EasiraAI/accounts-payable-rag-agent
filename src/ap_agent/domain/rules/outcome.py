@@ -37,6 +37,7 @@ approval gate be enforced by the orchestrator in one place.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,6 +48,19 @@ from ap_agent.domain.rules.duplicates import DuplicateResult
 from ap_agent.domain.rules.fraud import ESCALATION_INDICATOR_THRESHOLD, FraudIndicator
 from ap_agent.domain.rules.matching import MatchResult
 from ap_agent.domain.rules.vendor import VendorCheckResult
+
+
+class _CommonFields(TypedDict):
+    """The decision fields that are identical on every path.
+
+    A ``TypedDict`` so the spread into ``OutcomeDecision`` is checked field by field.
+    """
+
+    requires_second_approval: bool
+    second_approval_reason: str
+    required_role_minimum: ApproverRole | None
+    blocking_exceptions: list[ExceptionRecord]
+    indicator_count: int
 
 
 class OutcomeDecision(BaseModel):
@@ -88,7 +102,10 @@ def decide_outcome(
     blocking = [exception for exception in exceptions if exception.blocking]
     indicator_count = len(indicators)
 
-    common = {
+    # Typed explicitly rather than inferred. An inferred dict[str, object] does not
+    # type-check when spread into a constructor, and suppressing that per call site would
+    # hide a genuine mismatch if a field were later renamed.
+    common: _CommonFields = {
         "requires_second_approval": authority.requires_second_approval,
         "second_approval_reason": authority.second_approval_reason,
         "required_role_minimum": authority.required_role_minimum,
@@ -118,7 +135,7 @@ def decide_outcome(
                 "which control fired (FIN-POL-007 §3).",
             ],
             requires_approval=False,
-            **common,  # type: ignore[arg-type]
+            **common,
         )
 
     # 2. Settled duplicate.
@@ -133,7 +150,7 @@ def decide_outcome(
                 "the invoice was already settled.",
             ],
             requires_approval=True,
-            **common,  # type: ignore[arg-type]
+            **common,
         )
 
     # 3. Unusable request.
@@ -142,7 +159,7 @@ def decide_outcome(
             outcome=Outcome.REJECT_INVALID,
             reasons=[*invalid_reasons, "the request cannot be processed as submitted"],
             requires_approval=True,
-            **common,  # type: ignore[arg-type]
+            **common,
         )
 
     # 4. Blocking control failure, or a sub-threshold risk signal.
@@ -154,7 +171,7 @@ def decide_outcome(
             ]
             + ["missing or contradictory evidence results in a hold, not a guessed conclusion"],
             requires_approval=False,
-            **common,  # type: ignore[arg-type]
+            **common,
         )
     # 5. Every control satisfied.
     #
@@ -188,5 +205,5 @@ def decide_outcome(
         outcome=Outcome.APPROVE_FOR_POSTING,
         reasons=reasons,
         requires_approval=True,
-        **common,  # type: ignore[arg-type]
+        **common,
     )

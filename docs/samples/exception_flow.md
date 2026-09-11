@@ -140,27 +140,27 @@ None. Nothing was recorded against any system of record.
 | 11 | `RETRIEVAL` |  | SUCCESS | 1 | query=duplicate invoice detection matching fields and fraud indicators; purpose=duplicate_and_fraud; result_count=4 |
 | 12 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
 | 13 | `RETRIEVAL` |  | SUCCESS | 1 | query=vendor status values requiring a hold and verifying a bank account ...; purpose=vendor_controls; result_count=4 |
-| 14 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 9 | next_phase=GATHER_EVIDENCE |
+| 14 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 11 | next_phase=GATHER_EVIDENCE |
 | 15 | `PHASE_STARTED` | GATHER_EVIDENCE |  |  |  |
 | 16 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_vendor_record; attempt=1 |
 | 17 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_purchase_order; attempt=1 |
 | 18 | `TOOL_CALL` |  | SUCCESS | 0 | tool=check_invoice_history; attempt=1 |
 | 19 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
-| 20 | `RETRIEVAL` |  | SUCCESS | 1 | query=supplier payment instructions urgent bank account change new accoun...; purpose=supplier_supplied_material; result_count=4 |
-| 21 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 6 | next_phase=RECONCILE |
+| 20 | `RETRIEVAL` |  | SUCCESS | 2 | query=supplier payment instructions urgent bank account change new accoun...; purpose=supplier_supplied_material; result_count=4 |
+| 21 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 8 | next_phase=RECONCILE |
 | 22 | `PHASE_STARTED` | RECONCILE |  |  |  |
 | 23 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=three_way_match; exception_count=0 |
 | 24 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=duplicate_check; exception_count=0 |
 | 25 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=vendor_status_check; exception_count=1 |
 | 26 | `EXCEPTION_RAISED` | RECONCILE | RAISED |  | category=BANK_CHANGE; failed_rule=vendor_status_check.bank_details_stable |
-| 27 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 3 | next_phase=ASSESS_RISK |
+| 27 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 9 | next_phase=ASSESS_RISK |
 | 28 | `PHASE_STARTED` | ASSESS_RISK |  |  |  |
 | 29 | `INJECTION_ATTEMPT_DETECTED` | ASSESS_RISK | BLOCKED |  | source=document:ADV-001 §0; patterns=IGNORE_PRIOR_INSTRUCTIONS, IGNORE_NAMED_POLICY, SKIP_CONTROL, SUPPR... |
 | 30 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=EvidenceSynthesis; attempt=1 |
-| 31 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 4 | next_phase=RECOMMEND |
+| 31 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 11 | next_phase=RECOMMEND |
 | 32 | `PHASE_STARTED` | RECOMMEND |  |  |  |
 | 33 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=RecommendationNarrative; attempt=1 |
 | 34 | `RECOMMENDATION_READY` | RECOMMEND | ESCALATE_CONTROL_REVIEW |  | outcome=ESCALATE_CONTROL_REVIEW; indicator_codes=URGENCY_OR_SECRECY_LANGUAGE, BANK_CHANGE_REQUESTED_IN_UNVERIFIED_TE... |
-| 35 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 3 | next_phase=HELD |
+| 35 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 7 | next_phase=HELD |
 | 36 | `RUN_COMPLETED` | HELD | HELD |  | outcome=ESCALATE_CONTROL_REVIEW; decision_ref=None; exception_count=1; status=HELD |
 

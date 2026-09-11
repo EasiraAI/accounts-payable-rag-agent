@@ -2,7 +2,7 @@
   "case_id": "FIN-001",
   "intent": "Valid three-way match. Invoice, purchase order and receipts agree; vendor active; policy requires an approver. Expect APPROVE_FOR_POSTING, a stop at the approval gate, then exactly one recorded decision.",
   "summary": {
-    "run_id": "run_f9f5d0db58de4220",
+    "run_id": "run_b45c118ce15446f4",
     "case_id": "FIN-001",
     "status": "COMPLETED",
     "phase": "COMPLETED",
@@ -12,7 +12,7 @@
     "exceptions": [],
     "indicators": [],
     "unknowns": 0,
-    "decision_ref": "DEC-B0FEED3E03D1",
+    "decision_ref": "DEC-0ED8A5505975",
     "failure_reason": null
   },
   "request": {
@@ -390,7 +390,7 @@
   },
   "final_result": {
     "case_id": "FIN-001",
-    "run_id": "run_f9f5d0db58de4220",
+    "run_id": "run_b45c118ce15446f4",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -761,11 +761,11 @@
       {
         "action": "RECORD_APPROVE_FOR_POSTING",
         "target": "SIMULATED_ERP",
-        "performed_at": "2026-09-11T02:33:45.780965Z",
-        "reference": "DEC-B0FEED3E03D1",
-        "idempotency_key": "b0feed3e03d125b215bcd453d04bf61837522d8c0423b4366a37533244ce2eb0",
+        "performed_at": "2026-09-11T02:48:57.934835Z",
+        "reference": "DEC-0ED8A5505975",
+        "idempotency_key": "0ed8a5505975266d961c0fb516ce423bce90bd0c570aae0cd9263543620db0c6",
         "simulated": true,
-        "detail": "Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_22678a20d27e4676 was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING"
+        "detail": "Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_589d08df023246de was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING"
       }
     ],
     "recommendation": {
@@ -1106,17 +1106,17 @@
       "second_approval_reason": ""
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T02:33:45.782602Z"
+    "completed_at": "2026-09-11T02:48:57.936786Z"
   },
   "decision": {
-    "decision_ref": "DEC-B0FEED3E03D1",
-    "run_id": "run_f9f5d0db58de4220",
+    "decision_ref": "DEC-0ED8A5505975",
+    "run_id": "run_b45c118ce15446f4",
     "case_id": "FIN-001",
     "outcome": "APPROVE_FOR_POSTING",
     "amount": "17952.00",
     "currency": "AUD",
-    "idempotency_key": "b0feed3e03d125b215bcd453d04bf61837522d8c0423b4366a37533244ce2eb0",
-    "recorded_at": "2026-09-11T02:33:45.780965Z",
+    "idempotency_key": "0ed8a5505975266d961c0fb516ce423bce90bd0c570aae0cd9263543620db0c6",
+    "recorded_at": "2026-09-11T02:48:57.934835Z",
     "simulated": true,
     "replayed": false,
     "posting_system": "SIMULATED_ERP"
@@ -1137,7 +1137,7 @@
         "attachment_count": 0,
         "has_notes": false,
         "max_steps": 12,
-        "max_tool_calls": 10,
+        "max_tool_calls": 16,
         "provider": "fake",
         "model": "fake-deterministic-1"
       }
@@ -1175,7 +1175,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 34,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1187,7 +1187,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 37,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1252,7 +1252,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 15,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1264,7 +1264,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 16,
       "payload": {
         "query": "delegated financial authority approval limits and when two approvals are required",
         "query_terms": [
@@ -1326,7 +1326,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 20,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1338,7 +1338,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 21,
       "payload": {
         "query": "duplicate invoice detection matching fields and fraud indicators",
         "query_terms": [
@@ -1400,7 +1400,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 10,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1412,7 +1412,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 11,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -1476,7 +1476,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 11,
+      "duration_ms": 94,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1496,7 +1496,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 21,
       "payload": {
         "tool": "get_vendor_record",
         "attempt": 1,
@@ -1508,7 +1508,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 5,
       "payload": {
         "tool": "get_purchase_order",
         "attempt": 1,
@@ -1520,7 +1520,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 4,
       "payload": {
         "tool": "check_invoice_history",
         "attempt": 1,
@@ -1532,7 +1532,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 6,
+      "duration_ms": 40,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1588,7 +1588,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 6,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1623,7 +1623,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "ASSESS_RISK",
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 3,
       "payload": {
         "next_phase": "RECOMMEND",
         "steps_used": 5,
@@ -1677,7 +1677,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_22678a20d27e4676",
+        "approval_id": "apr_589d08df023246de",
         "requested_outcome": "APPROVE_FOR_POSTING",
         "amount": "17952.00",
         "currency": "AUD",
@@ -1691,7 +1691,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 8,
       "payload": {
         "next_phase": "AWAITING_APPROVAL",
         "steps_used": 6,
@@ -1705,7 +1705,7 @@
       "outcome": "APPROVED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_22678a20d27e4676",
+        "approval_id": "apr_589d08df023246de",
         "decision": "APPROVED",
         "approver_id": "U-3081",
         "approver_role": "DEPARTMENT_DIRECTOR",
@@ -1728,9 +1728,9 @@
       "event_type": "DECISION_SUBMITTED",
       "phase": "EXECUTE_DECISION",
       "outcome": "RECORDED",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
-        "decision_ref": "DEC-B0FEED3E03D1",
+        "decision_ref": "DEC-0ED8A5505975",
         "outcome": "APPROVE_FOR_POSTING",
         "amount": "17952.00",
         "currency": "AUD",
@@ -1744,7 +1744,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "EXECUTE_DECISION",
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 4,
       "payload": {
         "next_phase": "COMPLETED",
         "steps_used": 7,
@@ -1765,7 +1765,7 @@
         "exception_count": 0,
         "unknown_count": 0,
         "action_count": 1,
-        "decision_ref": "DEC-B0FEED3E03D1"
+        "decision_ref": "DEC-0ED8A5505975"
       }
     }
   ]

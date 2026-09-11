@@ -135,7 +135,9 @@ def get_application(request: Request) -> Application:
     database is not reopened per request.
     """
     application = getattr(request.app.state, "application", None)
-    if application is None:  # pragma: no cover - guarded by the factory
+    # isinstance rather than a None check: the attribute is untyped application state, and
+    # narrowing it here means the handlers below receive a known type rather than Any.
+    if not isinstance(application, Application):  # pragma: no cover - guarded by the factory
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="the application is not initialised",
