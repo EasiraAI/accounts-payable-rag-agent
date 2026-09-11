@@ -1,0 +1,1213 @@
+{
+  "case_id": "FIN-004",
+  "intent": "Missing evidence. The purchasing system times out on every attempt and no receipt exists. Expect bounded retries, the gap exposed as an unknown, a hold, and no approval request for payment.",
+  "summary": {
+    "run_id": "run_4b1750c63461494d",
+    "case_id": "FIN-004",
+    "status": "HELD",
+    "phase": "HELD",
+    "outcome": "HOLD_FOR_INFORMATION",
+    "steps_used": 6,
+    "tool_calls_used": 9,
+    "exceptions": [
+      "MISSING_PO"
+    ],
+    "indicators": [],
+    "unknowns": 1,
+    "decision_ref": null,
+    "failure_reason": null
+  },
+  "request": {
+    "case_id": "FIN-004",
+    "invoice_reference": "INV-2026-0600",
+    "vendor": "Ardent Mechanical Contractors Pty Ltd",
+    "amount": "6600.00",
+    "currency": "AUD",
+    "notes": null,
+    "attachments": [],
+    "vendor_id": "V-4004",
+    "invoice_date": "2026-09-08",
+    "net_amount": "6000.00",
+    "tax_amount": "600.00",
+    "po_reference": "PO-99001",
+    "payment_terms_days": null,
+    "lines": [
+      {
+        "line_number": 1,
+        "description": "Emergency pump replacement labour",
+        "line_type": "SERVICE",
+        "quantity": "1",
+        "unit_price": "6000.00",
+        "line_total": "6000.00",
+        "po_line_number": 1
+      }
+    ],
+    "requested_by": "U-2210"
+  },
+  "recommendation": {
+    "outcome": "HOLD_FOR_INFORMATION",
+    "summary": "The case cannot be approved as submitted. The rule engine computed HOLD_FOR_INFORMATION from the control results supplied above, and the exceptions listed there identify what must be resolved.",
+    "cited_evidence": [
+      {
+        "document_id": "FIN-POL-002",
+        "title": "Three-Way Matching and Tolerances",
+        "version": "2.4",
+        "status": "current",
+        "section": "\u00a72",
+        "chunk_id": "FIN-POL-002#2",
+        "quote": "Tolerances  For goods, a line is within tolerance when invoiced quantity does not exceed received quantity and the lower of these limits is met: AUD 50 absolute variance or 1% of the PO line value. For services, the limit is AUD 100 or 2%, whichever is lower, provided the service owner confirms comp",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-007",
+        "title": "Invoice Exceptions and Escalations",
+        "version": "1.9",
+        "status": "current",
+        "section": "\u00a71",
+        "chunk_id": "FIN-POL-007#1",
+        "quote": "Exception categories  Use one primary category: `MISSING_PO`, `MISSING_RECEIPT`, `PRICE_VARIANCE`, `QUANTITY_VARIANCE`, `DUPLICATE_RISK`, `VENDOR_BLOCK`, `BANK_CHANGE`, `AUTHORITY_GAP`, `TAX_QUERY`, or `OTHER_CONTROL_RISK`.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-001",
+        "title": "Accounts Payable Core Policy",
+        "version": "3.2",
+        "status": "current",
+        "section": "\u00a75",
+        "chunk_id": "FIN-POL-001#5",
+        "quote": "Required checks  Before approval, the processor must perform duplicate detection, confirm vendor status, apply three-way matching where a PO exists, confirm approval authority, and check that payment instructions match the verified vendor master. Missing evidence results in a hold, not a guessed con",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-002",
+        "title": "Three-Way Matching and Tolerances",
+        "version": "2.4",
+        "status": "current",
+        "section": "\u00a71",
+        "chunk_id": "FIN-POL-002#1",
+        "quote": "Matching basis  PO-backed invoices must be compared against the approved purchase order and recorded goods or service receipt. Matching is performed per line and for the document total. Currency must match unless FIN-POL-009 authorises conversion.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-003",
+        "title": "Delegated Financial Authority Matrix",
+        "version": "4.0",
+        "status": "current",
+        "section": "\u00a73",
+        "chunk_id": "FIN-POL-003#3",
+        "quote": "Higher-risk transactions  Payments involving a new vendor less than 30 days old, a changed bank account, an overseas bank account, a manual payment, or a fraud flag require two approvals. One approver must be from Financial Control. The normal monetary limit still applies.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-003",
+        "title": "Delegated Financial Authority Matrix",
+        "version": "4.0",
+        "status": "current",
+        "section": "\u00a75",
+        "chunk_id": "FIN-POL-003#5",
+        "quote": "Approval evidence  The approval record must include approver identity, role, applicable limit, authority-register version, decision timestamp and case ID. The approver must see the invoice amount, vendor, exceptions and source citations before deciding.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-001",
+        "title": "Accounts Payable Core Policy",
+        "version": "3.2",
+        "status": "current",
+        "section": "\u00a73",
+        "chunk_id": "FIN-POL-001#3",
+        "quote": "Processing outcome  Accounts Payable may recommend one of: `APPROVE_FOR_POSTING`, `HOLD_FOR_INFORMATION`, `REJECT_DUPLICATE`, `REJECT_INVALID`, or `ESCALATE_CONTROL_REVIEW`. A recommendation is not an approval. The system must validate delegated authority under FIN-POL-003 before posting.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-005",
+        "title": "Duplicate Invoice and Fraud Controls",
+        "version": "2.8",
+        "status": "current",
+        "section": "\u00a72",
+        "chunk_id": "FIN-POL-005#2",
+        "quote": "Outcomes  An exact match to a paid or posted invoice results in `REJECT_DUPLICATE`. A probable fuzzy match results in `HOLD_FOR_INFORMATION` with both record IDs cited. A prior rejection does not automatically prove a new invoice is a duplicate; the reason and corrected fields must be reviewed.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-008",
+        "title": "Credit Notes, Refunds and Overpayments",
+        "version": "2.1",
+        "status": "current",
+        "section": "\u00a75",
+        "chunk_id": "FIN-POL-008#5",
+        "quote": "Write-offs  Write-offs up to AUD 5,000 require a Department Director and Financial Control. Above AUD 5,000 requires CFO approval. Write-offs must not be used to conceal duplicate payments or unresolved fraud indicators.",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-005",
+        "title": "Duplicate Invoice and Fraud Controls",
+        "version": "2.8",
+        "status": "current",
+        "section": "\u00a71",
+        "chunk_id": "FIN-POL-005#1",
+        "quote": "Duplicate detection  Every invoice must be checked against paid, posted, held and rejected records. Exact matching uses vendor ID, normalised invoice number, currency and gross amount. Fuzzy matching should also consider punctuation-stripped invoice numbers, invoice date within 14 days, amount varia",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-004",
+        "title": "Vendor Onboarding and Bank Detail Changes",
+        "version": "5.1",
+        "status": "current",
+        "section": "\u00a72",
+        "chunk_id": "FIN-POL-004#2",
+        "quote": "Bank-account changes  Bank changes are high risk. Instructions contained in an invoice, email attachment or chat message are not sufficient. Vendor Governance must verify the change using a known contact method already stored in the vendor master, not contact details supplied in the change request. ",
+        "trust": "UNTRUSTED_EVIDENCE"
+      },
+      {
+        "document_id": "FIN-POL-002",
+        "title": "Three-Way Matching and Tolerances",
+        "version": "2.4",
+        "status": "current",
+        "section": "\u00a73",
+        "chunk_id": "FIN-POL-002#3",
+        "quote": "Outcomes  All lines within tolerance may proceed to delegated approval. A variance outside tolerance produces `HOLD_FOR_INFORMATION` and must identify the failed line, expected value, actual value, difference and applicable threshold. Splitting a variance across multiple invoices does not make it ac",
+        "trust": "UNTRUSTED_EVIDENCE"
+      }
+    ],
+    "calculations": [
+      {
+        "name": "required_approval_authority",
+        "inputs": {
+          "total_commitment": "6600.00",
+          "currency": "AUD",
+          "register_version": "FIN-POL-003 v4.0",
+          "limit_for_role": "10000"
+        },
+        "formula": "lowest role in the FIN-POL-003 \u00a72 matrix whose maximum >= total_commitment",
+        "result": "10000",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-003 \u00a72",
+        "passed": null,
+        "note": "Total commitment includes tax and related charges. Amounts must not be split to avoid a threshold (FIN-POL-003 \u00a71)."
+      }
+    ],
+    "assumptions": [
+      "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved."
+    ],
+    "confidence": {
+      "score": "0.62",
+      "basis": "controls were applied completely, but at least one failed or lacked evidence",
+      "drivers": [
+        "every control was evaluated and its result recorded"
+      ],
+      "limits": [
+        "at least one control could not be satisfied from the evidence available",
+        "conclusions about the missing evidence cannot be drawn until it arrives"
+      ]
+    },
+    "exceptions": [
+      {
+        "category": "MISSING_PO",
+        "failed_rule": "three_way_match.purchase_order_present",
+        "expected": "an approved purchase order to match the invoice against",
+        "observed": "invoice cites purchase order PO-99001 but no such order was returned by the purchasing system",
+        "owner": "REQUESTER",
+        "policy_refs": [
+          "FIN-POL-002 \u00a71",
+          "FIN-POL-002 \u00a73"
+        ],
+        "citations": [],
+        "next_review_date": "2026-09-16",
+        "detail": "Matching cannot be performed without the order. Under FIN-POL-012 \u00a71 a missing purchase order is not automatically an emergency; non-PO processing is limited to the categories listed there.",
+        "blocking": true
+      }
+    ],
+    "next_action": "Route the exception to the owner named in the exception record and resume the case from the failed control once new evidence arrives.",
+    "requires_approval": false,
+    "requires_second_approval": false,
+    "second_approval_reason": ""
+  },
+  "final_result": {
+    "case_id": "FIN-004",
+    "run_id": "run_4b1750c63461494d",
+    "sourced_facts": [
+      {
+        "statement": "Invoice submitted for processing",
+        "value": "INV-2026-0600, 6600.00 AUD",
+        "source": "processing request FIN-004",
+        "citations": []
+      },
+      {
+        "statement": "Vendor named on the invoice",
+        "value": "Ardent Mechanical Contractors Pty Ltd",
+        "source": "processing request FIN-004",
+        "citations": []
+      },
+      {
+        "statement": "The governing policy for invoice matching, duplicate detection, vendor status and delegated authority was retrieved and cited.",
+        "value": "4 policy chunk(s) cited",
+        "source": "model synthesis of retrieved evidence",
+        "citations": [
+          {
+            "document_id": "FIN-POL-002",
+            "title": "Three-Way Matching and Tolerances",
+            "version": "2.4",
+            "status": "current",
+            "section": "\u00a72",
+            "chunk_id": "FIN-POL-002#2",
+            "quote": "Tolerances  For goods, a line is within tolerance when invoiced quantity does not exceed received quantity and the lower of these limits is met: AUD 50 absolute variance or 1% of the PO line value. For services, the limit is AUD 100 or 2%, whichever is lower, provided the service owner confirms comp",
+            "trust": "UNTRUSTED_EVIDENCE"
+          },
+          {
+            "document_id": "FIN-POL-007",
+            "title": "Invoice Exceptions and Escalations",
+            "version": "1.9",
+            "status": "current",
+            "section": "\u00a71",
+            "chunk_id": "FIN-POL-007#1",
+            "quote": "Exception categories  Use one primary category: `MISSING_PO`, `MISSING_RECEIPT`, `PRICE_VARIANCE`, `QUANTITY_VARIANCE`, `DUPLICATE_RISK`, `VENDOR_BLOCK`, `BANK_CHANGE`, `AUTHORITY_GAP`, `TAX_QUERY`, or `OTHER_CONTROL_RISK`.",
+            "trust": "UNTRUSTED_EVIDENCE"
+          },
+          {
+            "document_id": "FIN-POL-001",
+            "title": "Accounts Payable Core Policy",
+            "version": "3.2",
+            "status": "current",
+            "section": "\u00a75",
+            "chunk_id": "FIN-POL-001#5",
+            "quote": "Required checks  Before approval, the processor must perform duplicate detection, confirm vendor status, apply three-way matching where a PO exists, confirm approval authority, and check that payment instructions match the verified vendor master. Missing evidence results in a hold, not a guessed con",
+            "trust": "UNTRUSTED_EVIDENCE"
+          },
+          {
+            "document_id": "FIN-POL-002",
+            "title": "Three-Way Matching and Tolerances",
+            "version": "2.4",
+            "status": "current",
+            "section": "\u00a71",
+            "chunk_id": "FIN-POL-002#1",
+            "quote": "Matching basis  PO-backed invoices must be compared against the approved purchase order and recorded goods or service receipt. Matching is performed per line and for the document total. Currency must match unless FIN-POL-009 authorises conversion.",
+            "trust": "UNTRUSTED_EVIDENCE"
+          }
+        ]
+      }
+    ],
+    "calculations": [
+      {
+        "name": "required_approval_authority",
+        "inputs": {
+          "total_commitment": "6600.00",
+          "currency": "AUD",
+          "register_version": "FIN-POL-003 v4.0",
+          "limit_for_role": "10000"
+        },
+        "formula": "lowest role in the FIN-POL-003 \u00a72 matrix whose maximum >= total_commitment",
+        "result": "10000",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-003 \u00a72",
+        "passed": null,
+        "note": "Total commitment includes tax and related charges. Amounts must not be split to avoid a threshold (FIN-POL-003 \u00a71)."
+      }
+    ],
+    "inferences": [
+      {
+        "statement": "The evidence set is incomplete, so the case cannot be settled as submitted.",
+        "basis": "reconciliation summary supplied with this prompt",
+        "confidence": "0.7",
+        "citations": [
+          {
+            "document_id": "FIN-POL-002",
+            "title": "Three-Way Matching and Tolerances",
+            "version": "2.4",
+            "status": "current",
+            "section": "\u00a72",
+            "chunk_id": "FIN-POL-002#2",
+            "quote": "Tolerances  For goods, a line is within tolerance when invoiced quantity does not exceed received quantity and the lower of these limits is met: AUD 50 absolute variance or 1% of the PO line value. For services, the limit is AUD 100 or 2%, whichever is lower, provided the service owner confirms comp",
+            "trust": "UNTRUSTED_EVIDENCE"
+          },
+          {
+            "document_id": "FIN-POL-007",
+            "title": "Invoice Exceptions and Escalations",
+            "version": "1.9",
+            "status": "current",
+            "section": "\u00a71",
+            "chunk_id": "FIN-POL-007#1",
+            "quote": "Exception categories  Use one primary category: `MISSING_PO`, `MISSING_RECEIPT`, `PRICE_VARIANCE`, `QUANTITY_VARIANCE`, `DUPLICATE_RISK`, `VENDOR_BLOCK`, `BANK_CHANGE`, `AUTHORITY_GAP`, `TAX_QUERY`, or `OTHER_CONTROL_RISK`.",
+            "trust": "UNTRUSTED_EVIDENCE"
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      {
+        "item": "purchase order PO-99001 lines, totals, tolerances and receipts",
+        "reason": "get_purchase_order did not respond after 3 attempt(s): simulated upstream timeout",
+        "impact": "three-way matching could not be performed, so the invoice cannot be approved for posting",
+        "how_to_resolve": "retry once the purchasing system is reachable; the order was not shown to be absent, only unreachable",
+        "source_attempted": "get_purchase_order"
+      }
+    ],
+    "policy_findings": [
+      {
+        "rule": "purchase_order_present",
+        "policy_ref": "FIN-POL-002 \u00a71",
+        "satisfied": false,
+        "detail": "no purchase order available, so no line or total matching was performed",
+        "citations": []
+      },
+      {
+        "rule": "no_duplicate_detected",
+        "policy_ref": "FIN-POL-005 \u00a71",
+        "satisfied": true,
+        "detail": "2 candidate record(s) examined against paid, posted, held and rejected history; none matched",
+        "citations": []
+      },
+      {
+        "rule": "vendor_status_active",
+        "policy_ref": "FIN-POL-004 \u00a74",
+        "satisfied": true,
+        "detail": "vendor V-4004 is ACTIVE",
+        "citations": []
+      },
+      {
+        "rule": "bank_details_stable",
+        "policy_ref": "FIN-POL-004 \u00a72",
+        "satisfied": true,
+        "detail": "no bank-detail change inside the 30-day window",
+        "citations": []
+      },
+      {
+        "rule": "segregation_of_duties",
+        "policy_ref": "FIN-POL-001 \u00a74",
+        "satisfied": true,
+        "detail": "requester and vendor creator are different people",
+        "citations": []
+      },
+      {
+        "rule": "legal_name_agreement",
+        "policy_ref": "FIN-POL-004 \u00a74",
+        "satisfied": true,
+        "detail": "invoice vendor name matches the master record",
+        "citations": []
+      },
+      {
+        "rule": "approval_authority_determined",
+        "policy_ref": "FIN-POL-003 \u00a72",
+        "satisfied": true,
+        "detail": "6600.00 AUD requires at least COST_CENTRE_MANAGER (limit 10000 AUD)",
+        "citations": []
+      },
+      {
+        "rule": "outcome_determined_deterministically",
+        "policy_ref": "FIN-POL-002 \u00a75",
+        "satisfied": true,
+        "detail": "The outcome was computed by the rule engine from typed facts. MISSING_PO: three_way_match.purchase_order_present; missing or contradictory evidence results in a hold, not a guessed conclusion",
+        "citations": []
+      }
+    ],
+    "actions_taken": [],
+    "recommendation": {
+      "outcome": "HOLD_FOR_INFORMATION",
+      "summary": "The case cannot be approved as submitted. The rule engine computed HOLD_FOR_INFORMATION from the control results supplied above, and the exceptions listed there identify what must be resolved.",
+      "cited_evidence": [
+        {
+          "document_id": "FIN-POL-002",
+          "title": "Three-Way Matching and Tolerances",
+          "version": "2.4",
+          "status": "current",
+          "section": "\u00a72",
+          "chunk_id": "FIN-POL-002#2",
+          "quote": "Tolerances  For goods, a line is within tolerance when invoiced quantity does not exceed received quantity and the lower of these limits is met: AUD 50 absolute variance or 1% of the PO line value. For services, the limit is AUD 100 or 2%, whichever is lower, provided the service owner confirms comp",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-007",
+          "title": "Invoice Exceptions and Escalations",
+          "version": "1.9",
+          "status": "current",
+          "section": "\u00a71",
+          "chunk_id": "FIN-POL-007#1",
+          "quote": "Exception categories  Use one primary category: `MISSING_PO`, `MISSING_RECEIPT`, `PRICE_VARIANCE`, `QUANTITY_VARIANCE`, `DUPLICATE_RISK`, `VENDOR_BLOCK`, `BANK_CHANGE`, `AUTHORITY_GAP`, `TAX_QUERY`, or `OTHER_CONTROL_RISK`.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-001",
+          "title": "Accounts Payable Core Policy",
+          "version": "3.2",
+          "status": "current",
+          "section": "\u00a75",
+          "chunk_id": "FIN-POL-001#5",
+          "quote": "Required checks  Before approval, the processor must perform duplicate detection, confirm vendor status, apply three-way matching where a PO exists, confirm approval authority, and check that payment instructions match the verified vendor master. Missing evidence results in a hold, not a guessed con",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-002",
+          "title": "Three-Way Matching and Tolerances",
+          "version": "2.4",
+          "status": "current",
+          "section": "\u00a71",
+          "chunk_id": "FIN-POL-002#1",
+          "quote": "Matching basis  PO-backed invoices must be compared against the approved purchase order and recorded goods or service receipt. Matching is performed per line and for the document total. Currency must match unless FIN-POL-009 authorises conversion.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-003",
+          "title": "Delegated Financial Authority Matrix",
+          "version": "4.0",
+          "status": "current",
+          "section": "\u00a73",
+          "chunk_id": "FIN-POL-003#3",
+          "quote": "Higher-risk transactions  Payments involving a new vendor less than 30 days old, a changed bank account, an overseas bank account, a manual payment, or a fraud flag require two approvals. One approver must be from Financial Control. The normal monetary limit still applies.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-003",
+          "title": "Delegated Financial Authority Matrix",
+          "version": "4.0",
+          "status": "current",
+          "section": "\u00a75",
+          "chunk_id": "FIN-POL-003#5",
+          "quote": "Approval evidence  The approval record must include approver identity, role, applicable limit, authority-register version, decision timestamp and case ID. The approver must see the invoice amount, vendor, exceptions and source citations before deciding.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-001",
+          "title": "Accounts Payable Core Policy",
+          "version": "3.2",
+          "status": "current",
+          "section": "\u00a73",
+          "chunk_id": "FIN-POL-001#3",
+          "quote": "Processing outcome  Accounts Payable may recommend one of: `APPROVE_FOR_POSTING`, `HOLD_FOR_INFORMATION`, `REJECT_DUPLICATE`, `REJECT_INVALID`, or `ESCALATE_CONTROL_REVIEW`. A recommendation is not an approval. The system must validate delegated authority under FIN-POL-003 before posting.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-005",
+          "title": "Duplicate Invoice and Fraud Controls",
+          "version": "2.8",
+          "status": "current",
+          "section": "\u00a72",
+          "chunk_id": "FIN-POL-005#2",
+          "quote": "Outcomes  An exact match to a paid or posted invoice results in `REJECT_DUPLICATE`. A probable fuzzy match results in `HOLD_FOR_INFORMATION` with both record IDs cited. A prior rejection does not automatically prove a new invoice is a duplicate; the reason and corrected fields must be reviewed.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-008",
+          "title": "Credit Notes, Refunds and Overpayments",
+          "version": "2.1",
+          "status": "current",
+          "section": "\u00a75",
+          "chunk_id": "FIN-POL-008#5",
+          "quote": "Write-offs  Write-offs up to AUD 5,000 require a Department Director and Financial Control. Above AUD 5,000 requires CFO approval. Write-offs must not be used to conceal duplicate payments or unresolved fraud indicators.",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-005",
+          "title": "Duplicate Invoice and Fraud Controls",
+          "version": "2.8",
+          "status": "current",
+          "section": "\u00a71",
+          "chunk_id": "FIN-POL-005#1",
+          "quote": "Duplicate detection  Every invoice must be checked against paid, posted, held and rejected records. Exact matching uses vendor ID, normalised invoice number, currency and gross amount. Fuzzy matching should also consider punctuation-stripped invoice numbers, invoice date within 14 days, amount varia",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-004",
+          "title": "Vendor Onboarding and Bank Detail Changes",
+          "version": "5.1",
+          "status": "current",
+          "section": "\u00a72",
+          "chunk_id": "FIN-POL-004#2",
+          "quote": "Bank-account changes  Bank changes are high risk. Instructions contained in an invoice, email attachment or chat message are not sufficient. Vendor Governance must verify the change using a known contact method already stored in the vendor master, not contact details supplied in the change request. ",
+          "trust": "UNTRUSTED_EVIDENCE"
+        },
+        {
+          "document_id": "FIN-POL-002",
+          "title": "Three-Way Matching and Tolerances",
+          "version": "2.4",
+          "status": "current",
+          "section": "\u00a73",
+          "chunk_id": "FIN-POL-002#3",
+          "quote": "Outcomes  All lines within tolerance may proceed to delegated approval. A variance outside tolerance produces `HOLD_FOR_INFORMATION` and must identify the failed line, expected value, actual value, difference and applicable threshold. Splitting a variance across multiple invoices does not make it ac",
+          "trust": "UNTRUSTED_EVIDENCE"
+        }
+      ],
+      "calculations": [
+        {
+          "name": "required_approval_authority",
+          "inputs": {
+            "total_commitment": "6600.00",
+            "currency": "AUD",
+            "register_version": "FIN-POL-003 v4.0",
+            "limit_for_role": "10000"
+          },
+          "formula": "lowest role in the FIN-POL-003 \u00a72 matrix whose maximum >= total_commitment",
+          "result": "10000",
+          "currency": "AUD",
+          "rounding": "ROUND_HALF_UP",
+          "policy_ref": "FIN-POL-003 \u00a72",
+          "passed": null,
+          "note": "Total commitment includes tax and related charges. Amounts must not be split to avoid a threshold (FIN-POL-003 \u00a71)."
+        }
+      ],
+      "assumptions": [
+        "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved."
+      ],
+      "confidence": {
+        "score": "0.62",
+        "basis": "controls were applied completely, but at least one failed or lacked evidence",
+        "drivers": [
+          "every control was evaluated and its result recorded"
+        ],
+        "limits": [
+          "at least one control could not be satisfied from the evidence available",
+          "conclusions about the missing evidence cannot be drawn until it arrives"
+        ]
+      },
+      "exceptions": [
+        {
+          "category": "MISSING_PO",
+          "failed_rule": "three_way_match.purchase_order_present",
+          "expected": "an approved purchase order to match the invoice against",
+          "observed": "invoice cites purchase order PO-99001 but no such order was returned by the purchasing system",
+          "owner": "REQUESTER",
+          "policy_refs": [
+            "FIN-POL-002 \u00a71",
+            "FIN-POL-002 \u00a73"
+          ],
+          "citations": [],
+          "next_review_date": "2026-09-16",
+          "detail": "Matching cannot be performed without the order. Under FIN-POL-012 \u00a71 a missing purchase order is not automatically an emergency; non-PO processing is limited to the categories listed there.",
+          "blocking": true
+        }
+      ],
+      "next_action": "Route the exception to the owner named in the exception record and resume the case from the failed control once new evidence arrives.",
+      "requires_approval": false,
+      "requires_second_approval": false,
+      "second_approval_reason": ""
+    },
+    "failure_reason": null,
+    "completed_at": "2026-09-11T02:33:46.142338Z"
+  },
+  "decision": null,
+  "events": [
+    {
+      "sequence": 1,
+      "event_type": "RUN_CREATED",
+      "phase": "INTAKE",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {
+        "case_id": "FIN-004",
+        "invoice_reference": "INV-2026-0600",
+        "vendor": "Ardent Mechanical Contractors Pty Ltd",
+        "amount": "6600.00",
+        "currency": "AUD",
+        "attachment_count": 0,
+        "has_notes": false,
+        "max_steps": 12,
+        "max_tool_calls": 10,
+        "provider": "fake",
+        "model": "fake-deterministic-1"
+      }
+    },
+    {
+      "sequence": 2,
+      "event_type": "PHASE_STARTED",
+      "phase": "INTAKE",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {}
+    },
+    {
+      "sequence": 3,
+      "event_type": "PHASE_COMPLETED",
+      "phase": "INTAKE",
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "next_phase": "RETRIEVE_POLICY",
+        "steps_used": 1,
+        "tool_calls_used": 0
+      }
+    },
+    {
+      "sequence": 4,
+      "event_type": "PHASE_STARTED",
+      "phase": "RETRIEVE_POLICY",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {}
+    },
+    {
+      "sequence": 5,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "retrieve_finance_documents",
+        "attempt": 1,
+        "attempts_allowed": 2
+      }
+    },
+    {
+      "sequence": 6,
+      "event_type": "RETRIEVAL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 1,
+      "payload": {
+        "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
+        "query_terms": [
+          "three",
+          "way",
+          "match",
+          "tolerance",
+          "price",
+          "variance",
+          "quantity",
+          "good",
+          "receipt",
+          "requirement"
+        ],
+        "purpose": "three_way_match",
+        "doc_types": [
+          "policy"
+        ],
+        "result_count": 4,
+        "results": [
+          {
+            "chunk_id": "FIN-POL-002#2",
+            "document_id": "FIN-POL-002",
+            "section": "\u00a72",
+            "version": "2.4",
+            "status": "current",
+            "rank": 1,
+            "score": 13.390222
+          },
+          {
+            "chunk_id": "FIN-POL-007#1",
+            "document_id": "FIN-POL-007",
+            "section": "\u00a71",
+            "version": "1.9",
+            "status": "current",
+            "rank": 2,
+            "score": 11.71132
+          },
+          {
+            "chunk_id": "FIN-POL-001#5",
+            "document_id": "FIN-POL-001",
+            "section": "\u00a75",
+            "version": "3.2",
+            "status": "current",
+            "rank": 3,
+            "score": 8.053307
+          },
+          {
+            "chunk_id": "FIN-POL-002#1",
+            "document_id": "FIN-POL-002",
+            "section": "\u00a71",
+            "version": "2.4",
+            "status": "current",
+            "rank": 4,
+            "score": 7.3586
+          }
+        ]
+      }
+    },
+    {
+      "sequence": 7,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "retrieve_finance_documents",
+        "attempt": 1,
+        "attempts_allowed": 2
+      }
+    },
+    {
+      "sequence": 8,
+      "event_type": "RETRIEVAL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 1,
+      "payload": {
+        "query": "delegated financial authority approval limits and when two approvals are required",
+        "query_terms": [
+          "delegate",
+          "financial",
+          "authority",
+          "approval",
+          "limit",
+          "two",
+          "required"
+        ],
+        "purpose": "delegated_authority",
+        "doc_types": [
+          "policy"
+        ],
+        "result_count": 4,
+        "results": [
+          {
+            "chunk_id": "FIN-POL-003#3",
+            "document_id": "FIN-POL-003",
+            "section": "\u00a73",
+            "version": "4.0",
+            "status": "current",
+            "rank": 1,
+            "score": 6.178892
+          },
+          {
+            "chunk_id": "FIN-POL-003#5",
+            "document_id": "FIN-POL-003",
+            "section": "\u00a75",
+            "version": "4.0",
+            "status": "current",
+            "rank": 2,
+            "score": 5.076861
+          },
+          {
+            "chunk_id": "FIN-POL-001#3",
+            "document_id": "FIN-POL-001",
+            "section": "\u00a73",
+            "version": "3.2",
+            "status": "current",
+            "rank": 3,
+            "score": 4.571459
+          },
+          {
+            "chunk_id": "FIN-POL-001#5",
+            "document_id": "FIN-POL-001",
+            "section": "\u00a75",
+            "version": "3.2",
+            "status": "current",
+            "rank": 4,
+            "score": 4.450439
+          }
+        ]
+      }
+    },
+    {
+      "sequence": 9,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "retrieve_finance_documents",
+        "attempt": 1,
+        "attempts_allowed": 2
+      }
+    },
+    {
+      "sequence": 10,
+      "event_type": "RETRIEVAL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 1,
+      "payload": {
+        "query": "duplicate invoice detection matching fields and fraud indicators",
+        "query_terms": [
+          "duplicate",
+          "invoice",
+          "detection",
+          "match",
+          "field",
+          "fraud",
+          "indicator"
+        ],
+        "purpose": "duplicate_and_fraud",
+        "doc_types": [
+          "policy"
+        ],
+        "result_count": 4,
+        "results": [
+          {
+            "chunk_id": "FIN-POL-005#2",
+            "document_id": "FIN-POL-005",
+            "section": "\u00a72",
+            "version": "2.8",
+            "status": "current",
+            "rank": 1,
+            "score": 8.877092
+          },
+          {
+            "chunk_id": "FIN-POL-008#5",
+            "document_id": "FIN-POL-008",
+            "section": "\u00a75",
+            "version": "2.1",
+            "status": "current",
+            "rank": 2,
+            "score": 7.252418
+          },
+          {
+            "chunk_id": "FIN-POL-001#5",
+            "document_id": "FIN-POL-001",
+            "section": "\u00a75",
+            "version": "3.2",
+            "status": "current",
+            "rank": 3,
+            "score": 6.919684
+          },
+          {
+            "chunk_id": "FIN-POL-005#1",
+            "document_id": "FIN-POL-005",
+            "section": "\u00a71",
+            "version": "2.8",
+            "status": "current",
+            "rank": 4,
+            "score": 6.182921
+          }
+        ]
+      }
+    },
+    {
+      "sequence": 11,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "retrieve_finance_documents",
+        "attempt": 1,
+        "attempts_allowed": 2
+      }
+    },
+    {
+      "sequence": 12,
+      "event_type": "RETRIEVAL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 1,
+      "payload": {
+        "query": "vendor status values requiring a hold and verifying a bank account change",
+        "query_terms": [
+          "vendor",
+          "status",
+          "value",
+          "requiring",
+          "hold",
+          "verifying",
+          "bank",
+          "account",
+          "change"
+        ],
+        "purpose": "vendor_controls",
+        "doc_types": [
+          "policy"
+        ],
+        "result_count": 4,
+        "results": [
+          {
+            "chunk_id": "FIN-POL-004#2",
+            "document_id": "FIN-POL-004",
+            "section": "\u00a72",
+            "version": "5.1",
+            "status": "current",
+            "rank": 1,
+            "score": 8.150604
+          },
+          {
+            "chunk_id": "FIN-POL-003#3",
+            "document_id": "FIN-POL-003",
+            "section": "\u00a73",
+            "version": "4.0",
+            "status": "current",
+            "rank": 2,
+            "score": 5.948884
+          },
+          {
+            "chunk_id": "FIN-POL-002#3",
+            "document_id": "FIN-POL-002",
+            "section": "\u00a73",
+            "version": "2.4",
+            "status": "current",
+            "rank": 3,
+            "score": 5.861126
+          },
+          {
+            "chunk_id": "FIN-POL-001#5",
+            "document_id": "FIN-POL-001",
+            "section": "\u00a75",
+            "version": "3.2",
+            "status": "current",
+            "rank": 4,
+            "score": 5.441445
+          }
+        ]
+      }
+    },
+    {
+      "sequence": 13,
+      "event_type": "PHASE_COMPLETED",
+      "phase": "RETRIEVE_POLICY",
+      "outcome": "SUCCESS",
+      "duration_ms": 9,
+      "payload": {
+        "next_phase": "GATHER_EVIDENCE",
+        "steps_used": 2,
+        "tool_calls_used": 4
+      }
+    },
+    {
+      "sequence": 14,
+      "event_type": "PHASE_STARTED",
+      "phase": "GATHER_EVIDENCE",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {}
+    },
+    {
+      "sequence": 15,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "get_vendor_record",
+        "attempt": 1,
+        "attempts_allowed": 3
+      }
+    },
+    {
+      "sequence": 16,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "TIMEOUT",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "get_purchase_order",
+        "attempt": 1,
+        "attempts_allowed": 3,
+        "timeout_seconds": 2.0
+      }
+    },
+    {
+      "sequence": 17,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "TIMEOUT",
+      "duration_ms": 0,
+      "payload": {
+        "tool": "get_purchase_order",
+        "attempt": 2,
+        "attempts_allowed": 3,
+        "timeout_seconds": 2.0
+      }
+    },
+    {
+      "sequence": 18,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "TIMEOUT",
+      "duration_ms": 1,
+      "payload": {
+        "tool": "get_purchase_order",
+        "attempt": 3,
+        "attempts_allowed": 3,
+        "timeout_seconds": 2.0
+      }
+    },
+    {
+      "sequence": 19,
+      "event_type": "TOOL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 1,
+      "payload": {
+        "tool": "check_invoice_history",
+        "attempt": 1,
+        "attempts_allowed": 3
+      }
+    },
+    {
+      "sequence": 20,
+      "event_type": "PHASE_COMPLETED",
+      "phase": "GATHER_EVIDENCE",
+      "outcome": "SUCCESS",
+      "duration_ms": 164,
+      "payload": {
+        "next_phase": "RECONCILE",
+        "steps_used": 3,
+        "tool_calls_used": 9
+      }
+    },
+    {
+      "sequence": 21,
+      "event_type": "PHASE_STARTED",
+      "phase": "RECONCILE",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {}
+    },
+    {
+      "sequence": 22,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "three_way_match",
+        "exception_count": 1,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 23,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "duplicate_check",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 24,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "vendor_status_check",
+        "exception_count": 0,
+        "finding_count": 4
+      }
+    },
+    {
+      "sequence": 25,
+      "event_type": "EXCEPTION_RAISED",
+      "phase": "RECONCILE",
+      "outcome": "RAISED",
+      "duration_ms": null,
+      "payload": {
+        "category": "MISSING_PO",
+        "failed_rule": "three_way_match.purchase_order_present",
+        "owner": "REQUESTER",
+        "blocking": true,
+        "policy_refs": [
+          "FIN-POL-002 \u00a71",
+          "FIN-POL-002 \u00a73"
+        ]
+      }
+    },
+    {
+      "sequence": 26,
+      "event_type": "PHASE_COMPLETED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": 7,
+      "payload": {
+        "next_phase": "ASSESS_RISK",
+        "steps_used": 4,
+        "tool_calls_used": 9
+      }
+    },
+    {
+      "sequence": 27,
+      "event_type": "PHASE_STARTED",
+      "phase": "ASSESS_RISK",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {}
+    },
+    {
+      "sequence": 28,
+      "event_type": "MODEL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "provider": "fake",
+        "model": "fake-deterministic-1",
+        "schema": "EvidenceSynthesis",
+        "attempt": 1,
+        "input_tokens": 2044,
+        "output_tokens": 120
+      }
+    },
+    {
+      "sequence": 29,
+      "event_type": "PHASE_COMPLETED",
+      "phase": "ASSESS_RISK",
+      "outcome": "SUCCESS",
+      "duration_ms": 3,
+      "payload": {
+        "next_phase": "RECOMMEND",
+        "steps_used": 5,
+        "tool_calls_used": 9
+      }
+    },
+    {
+      "sequence": 30,
+      "event_type": "PHASE_STARTED",
+      "phase": "RECOMMEND",
+      "outcome": null,
+      "duration_ms": null,
+      "payload": {}
+    },
+    {
+      "sequence": 31,
+      "event_type": "MODEL_CALL",
+      "phase": null,
+      "outcome": "SUCCESS",
+      "duration_ms": 0,
+      "payload": {
+        "provider": "fake",
+        "model": "fake-deterministic-1",
+        "schema": "RecommendationNarrative",
+        "attempt": 1,
+        "input_tokens": 520,
+        "output_tokens": 120
+      }
+    },
+    {
+      "sequence": 32,
+      "event_type": "RECOMMENDATION_READY",
+      "phase": "RECOMMEND",
+      "outcome": "HOLD_FOR_INFORMATION",
+      "duration_ms": null,
+      "payload": {
+        "outcome": "HOLD_FOR_INFORMATION",
+        "requires_approval": false,
+        "requires_second_approval": false,
+        "exception_categories": [
+          "MISSING_PO"
+        ],
+        "indicator_codes": [],
+        "confidence": "0.62",
+        "citation_count": 12,
+        "required_role_minimum": "COST_CENTRE_MANAGER"
+      }
+    },
+    {
+      "sequence": 33,
+      "event_type": "PHASE_COMPLETED",
+      "phase": "RECOMMEND",
+      "outcome": "SUCCESS",
+      "duration_ms": 3,
+      "payload": {
+        "next_phase": "HELD",
+        "steps_used": 6,
+        "tool_calls_used": 9
+      }
+    },
+    {
+      "sequence": 34,
+      "event_type": "RUN_COMPLETED",
+      "phase": "HELD",
+      "outcome": "HELD",
+      "duration_ms": null,
+      "payload": {
+        "status": "HELD",
+        "outcome": "HOLD_FOR_INFORMATION",
+        "steps_used": 6,
+        "tool_calls_used": 9,
+        "exception_count": 1,
+        "unknown_count": 1,
+        "action_count": 0,
+        "decision_ref": null
+      }
+    }
+  ]
+}

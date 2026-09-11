@@ -25,6 +25,24 @@ A run is advanced by whichever process holds it. Rather than locking a run for t
 of a phase, which would strand it if that process died, each write asserts the version it
 read. A stale write is rejected and the caller reloads. The failure mode is a retry, not a
 stuck run.
+
+## Two layers of write serialisation, and why both are needed
+
+One instance holds one connection, shared across threads. SQLite permits that with
+``check_same_thread=False``, but a connection has a single transaction context, so two
+threads issuing ``BEGIN IMMEDIATE`` on it collide with "cannot start a transaction within a
+transaction". That was not a theoretical concern: a concurrent-append test hit it on eight of
+twelve threads.
+
+Writes through one instance are therefore serialised by a process-local lock. Writes from
+*separate* connections, which is what a second process or a connection-per-worker deployment
+looks like, are serialised by SQLite's own write lock and made safe by the ``UNIQUE``
+constraints.
+
+The distinction matters because only the second layer survives a crash. The lock stops two
+threads interleaving; the constraints stop two processes double-posting. The exactly-once
+guarantee rests on the constraints, and the concurrency test that proves it deliberately uses
+one connection per thread so it exercises that path rather than the lock.
 """
 
 from __future__ import annotations
@@ -32,6 +50,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -123,6 +142,10 @@ class Repository:
             check_same_thread=False,
         )
         self._connection.row_factory = sqlite3.Row
+        # Serialises write transactions issued through this instance. See the module
+        # docstring: a single connection has one transaction context, so concurrent
+        # BEGIN IMMEDIATE statements on it are an error rather than contention.
+        self._write_lock = threading.Lock()
         self._apply_schema()
 
     @property
@@ -150,17 +173,18 @@ class Repository:
         callers have both read and neither has written. That window is exactly where a
         duplicate decision would be created.
         """
-        cursor = self._connection.cursor()
-        cursor.execute("BEGIN IMMEDIATE")
-        try:
-            yield cursor
-        except Exception:
-            cursor.execute("ROLLBACK")
-            raise
-        else:
-            cursor.execute("COMMIT")
-        finally:
-            cursor.close()
+        with self._write_lock:
+            cursor = self._connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE")
+            try:
+                yield cursor
+            except Exception:
+                cursor.execute("ROLLBACK")
+                raise
+            else:
+                cursor.execute("COMMIT")
+            finally:
+                cursor.close()
 
     # ---- runs -------------------------------------------------------------------------
 

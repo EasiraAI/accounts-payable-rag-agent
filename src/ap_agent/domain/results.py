@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -38,6 +38,25 @@ from ap_agent.domain.money import MoneyAmount
 
 NonEmptyStr = Annotated[str, Field(min_length=1, max_length=512)]
 Confidence = Annotated[Decimal, Field(ge=0, le=1)]
+
+#: Ceiling for narrative detail fields. Wider than ``NonEmptyStr`` because a finding's detail
+#: may concatenate several reasons, and a rule engine that explains itself fully is worth more
+#: than a tidier field.
+MAX_DETAIL_LENGTH: Final = 2_000
+DetailText = Annotated[str, Field(min_length=1, max_length=MAX_DETAIL_LENGTH)]
+
+
+def truncate_detail(text: str) -> str:
+    """Trim a detail string to the schema's own limit.
+
+    Callers use this rather than their own slice length. An earlier revision truncated to a
+    hand-written 1,200 characters while the field allowed 512, and a run with several
+    recorded reasons failed validation mid-phase. Deriving the bound from the constant the
+    annotation uses makes that divergence impossible.
+    """
+    if len(text) <= MAX_DETAIL_LENGTH:
+        return text
+    return text[: MAX_DETAIL_LENGTH - 3] + "..."
 
 
 class Calculation(BaseModel):
@@ -144,7 +163,7 @@ class PolicyFinding(BaseModel):
     rule: NonEmptyStr
     policy_ref: NonEmptyStr
     satisfied: bool
-    detail: NonEmptyStr
+    detail: DetailText
     citations: list[Citation] = Field(default_factory=list)
 
 

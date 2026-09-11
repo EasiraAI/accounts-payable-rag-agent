@@ -74,6 +74,7 @@ from ap_agent.domain.results import (
     Recommendation,
     SourcedFact,
     Unknown,
+    truncate_detail,
 )
 from ap_agent.domain.rules.authority import required_authority, validate_approval
 from ap_agent.domain.rules.duplicates import duplicate_check
@@ -853,11 +854,11 @@ class Orchestrator:
                         rule="untrusted_content_not_executed",
                         policy_ref="FIN-POL-005 §4",
                         satisfied=True,
-                        detail=(
+                        detail=truncate_detail(
                             "Instruction-like content was observed in untrusted evidence and "
                             "recorded as a risk indicator rather than followed. "
                             + synthesis.injection_note
-                        )[:1_200],
+                        ),
                     )
                 ]
             )
@@ -1003,10 +1004,10 @@ class Orchestrator:
                     rule="outcome_determined_deterministically",
                     policy_ref="FIN-POL-002 §5",
                     satisfied=True,
-                    detail=(
+                    detail=truncate_detail(
                         "The outcome was computed by the rule engine from typed facts. "
                         + "; ".join(decision.reasons)
-                    )[:1_200],
+                    ),
                 )
             ]
         )

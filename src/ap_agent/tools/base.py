@@ -187,7 +187,14 @@ class ToolRunner:
             attempt_started = time.perf_counter()
             try:
                 raw = self._call_once(spec, handler, arguments)
-                value = output_model.model_validate(raw, from_attributes=True)
+                # Strict validation. An earlier revision passed ``from_attributes=True`` so a
+                # handler could return a model instance directly, and a contract test showed
+                # what that cost: a handler returning an object of the *wrong* type validated
+                # successfully, because pydantic read attributes off it and filled every
+                # missing field from its default. A mismatched response became a default-valued
+                # success instead of an error. An instance of the declared type is accepted as
+                # itself; anything else must validate as data, and a wrong type does not.
+                value = raw if isinstance(raw, output_model) else output_model.model_validate(raw)
             except ValidationError as error:
                 # A tool whose response does not match its declared schema is broken, and
                 # retrying will produce the same shape. Treated as permanent.
