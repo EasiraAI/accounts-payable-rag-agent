@@ -68,12 +68,22 @@ def _amount_variance_percent(candidate: Decimal, prior: Decimal) -> Decimal:
     return (abs(candidate - prior) / prior * Decimal("100")).quantize(Decimal("0.0001"))
 
 
+def _normalise_reference(reference: str) -> str:
+    """An invoice number reduced to its alphanumeric characters, upper-cased.
+
+    Shared by the exact and the fuzzy test so the two cannot disagree about what counts as
+    the same number. FIN-POL-005 §1 requires punctuation-stripped comparison; keeping one
+    implementation is what makes "INV-1001", "INV 1001" and "inv1001" one invoice number
+    everywhere in this module.
+    """
+    return "".join(char for char in reference if char.isalnum()).upper()
+
+
 def _is_exact(invoice: Invoice, record: InvoiceHistoryMatch) -> bool:
     """FIN-POL-005 §1 exact match: vendor, normalised number, currency and gross amount."""
-    normalised_record = "".join(char for char in record.invoice_reference if char.isalnum()).upper()
     return (
         invoice.vendor_id == record.vendor_id
-        and invoice.normalised_reference == normalised_record
+        and invoice.normalised_reference == _normalise_reference(record.invoice_reference)
         and invoice.currency == record.currency
         and invoice.gross_amount == record.gross_amount
     )
@@ -95,6 +105,20 @@ def _fuzzy_reasons(invoice: Invoice, record: InvoiceHistoryMatch) -> list[str]:
     if shared_hashes:
         # Conclusive on its own: the identical document was submitted twice.
         return [f"identical attachment hash {sorted(shared_hashes)[0][:12]}"]
+
+    if invoice.normalised_reference == _normalise_reference(record.invoice_reference):
+        # FIN-POL-005 §1 names "punctuation-stripped invoice numbers" as a fuzzy signal in
+        # its own right. An earlier version reached this comparison only through the exact
+        # test, which also requires the currency and gross amount to agree, so a supplier who
+        # resubmitted "INV-1001" as "INV 1001" with a corrected amount matched neither test
+        # and was processed as a new invoice. The same vendor reusing an invoice number is
+        # strong on its own: invoice numbers are a supplier's own sequence, and a repeat is
+        # either a resubmission or a numbering fault. Either way it warrants a look.
+        return [
+            f"same invoice number once punctuation is stripped "
+            f"({invoice.normalised_reference}), amount "
+            f"{_amount_variance_percent(invoice.gross_amount, record.gross_amount)}% apart"
+        ]
 
     variance_percent = _amount_variance_percent(invoice.gross_amount, record.gross_amount)
     amount_is_near = variance_percent < FUZZY_AMOUNT_VARIANCE_PERCENT

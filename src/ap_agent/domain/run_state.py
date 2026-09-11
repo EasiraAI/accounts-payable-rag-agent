@@ -23,7 +23,7 @@ helpers below are what make a repeated phase idempotent in its effect on state.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -121,6 +121,18 @@ class RunState(BaseModel):
     #: is later judged against the facts they were shown rather than against vendor data as
     #: it stands at approval time.
     higher_risk_reasons: list[str] = Field(default_factory=list)
+    #: FIN-POL-006 §1: the date the invoice becomes payable on the *agreed* terms, after the
+    #: §2 adjustment off a non-business day. Recorded on the run rather than recomputed for
+    #: display, so the schedule a reviewer reads is the one the controls used.
+    payable_on: date | None = None
+    #: FIN-POL-006 §2: the standard run proposed for this invoice. ``None`` means no run
+    #: remains before the due date. A proposal only; FIN-POL-006 §4 forbids an agent
+    #: releasing a payment file, and no tool here can.
+    proposed_payment_run: date | None = None
+    #: Whether the due date fell on a non-business day. Read by the risk assessment, because
+    #: FIN-POL-005 §3 makes a *weekend* manual-payment request an indicator and this is the
+    #: fact that makes a manual request a weekend one.
+    settlement_on_non_business_day: bool = False
 
     # ---- outcome ----------------------------------------------------------------------
     recommendation: Recommendation | None = None

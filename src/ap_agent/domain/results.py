@@ -252,12 +252,47 @@ class FinalResult(BaseModel):
         return [finding for finding in self.policy_findings if not finding.satisfied]
 
 
+class ApprovalSignature(BaseModel):
+    """One person's signature on an approval.
+
+    An approval is a *set* of signatures rather than a single decision, because FIN-POL-003
+    §3 requires two approvals for a higher-risk transaction, one of them from Financial
+    Control. An earlier design stored a single decider and a ``requires_second_approval``
+    flag that nothing read, so one approver could post a bank-change case. Two independent
+    reviews found that, and modelling the signature set is the fix.
+
+    Each signature carries the authority it was validated against, because FIN-POL-003 §5
+    requires the approval record to show the applicable limit and register version for the
+    approver, not merely who they were.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    approver_id: NonEmptyStr
+    approver_role: NonEmptyStr
+    #: The role actually applied, which differs from the claimed role when a delegation
+    #: conferred a higher one.
+    effective_role: str = ""
+    applicable_limit: MoneyAmount | None = None
+    authority_register_version: str = ""
+    delegation_applied: str | None = None
+    is_financial_control: bool = False
+    signed_at: datetime
+    comment: str = ""
+
+
 class ApprovalRequest(BaseModel):
-    """A pending human decision.
+    """A pending human decision, and the signatures collected so far.
 
     ``presented_*`` fields exist because FIN-POL-003 §5 requires the approver to see the
     amount, vendor, exceptions and citations before deciding. Storing what was presented,
     rather than only what was decided, means the record shows the decision was informed.
+
+    They serve a second purpose the design did not originally have. A security review parked
+    a run at the gate, mutated the request amount, and watched the inflated figure post: both
+    gates compared only the run and the outcome. The presented values are now the amounts the
+    decision tool checks against, so an approver's authority applies to the figure they
+    actually saw.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -270,6 +305,7 @@ class ApprovalRequest(BaseModel):
     presented_amount: MoneyAmount
     presented_currency: str
     presented_vendor: NonEmptyStr
+    presented_vendor_id: str = ""
     presented_exception_categories: list[ExceptionCategory] = Field(default_factory=list)
     presented_citations: list[Citation] = Field(default_factory=list)
     #: Minimum role from the FIN-POL-003 §2 matrix, resolved when the request was created.
@@ -278,12 +314,63 @@ class ApprovalRequest(BaseModel):
     #: than recomputed at approval time, because the conditions are evaluated against vendor
     #: data as it stood when the case was assessed, and that data can change afterwards.
     higher_risk_reasons: list[str] = Field(default_factory=list)
-    requires_second_approval: bool = False
+    #: How many distinct signatures the gate requires. Two for a higher-risk transaction
+    #: under FIN-POL-003 §3, otherwise one.
+    required_signature_count: Annotated[int, Field(ge=1, le=4)] = 1
+    #: Whether one of the signatures must come from Financial Control (FIN-POL-003 §3).
+    requires_financial_control: bool = False
+    signatures: list[ApprovalSignature] = Field(default_factory=list)
     created_at: datetime
     decided_at: datetime | None = None
     decided_by: str | None = None
     decided_by_role: str | None = None
     decision_comment: str = ""
+
+    @property
+    def requires_second_approval(self) -> bool:
+        return self.required_signature_count > 1
+
+    @property
+    def signatures_collected(self) -> int:
+        return len(self.signatures)
+
+    @property
+    def signatures_outstanding(self) -> int:
+        return max(0, self.required_signature_count - self.signatures_collected)
+
+    @property
+    def has_financial_control_signature(self) -> bool:
+        return any(signature.is_financial_control for signature in self.signatures)
+
+    @property
+    def signature_requirement_met(self) -> bool:
+        """Whether every signature requirement is satisfied.
+
+        Three conditions, all necessary: enough signatures, all from distinct people, and a
+        Financial Control signature when one is required. Distinctness is checked here as
+        well as at validation time, because a set that met the count through one person
+        signing twice would satisfy nothing the first signature did not.
+        """
+        if self.signatures_collected < self.required_signature_count:
+            return False
+        signatories = {signature.approver_id for signature in self.signatures}
+        if len(signatories) < self.required_signature_count:
+            return False
+        return not (self.requires_financial_control and not self.has_financial_control_signature)
+
+    def outstanding_requirement_detail(self) -> str:
+        """Why the gate is still closed, phrased for a caller."""
+        if self.signature_requirement_met:
+            return ""
+        parts: list[str] = []
+        if self.signatures_outstanding:
+            parts.append(
+                f"{self.signatures_outstanding} further distinct signature(s) required "
+                f"({self.signatures_collected} of {self.required_signature_count} collected)"
+            )
+        if self.requires_financial_control and not self.has_financial_control_signature:
+            parts.append("one signature must come from Financial Control (FIN-POL-003 §3)")
+        return "; ".join(parts)
 
 
 class DecisionReceipt(BaseModel):

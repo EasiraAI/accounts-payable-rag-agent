@@ -259,3 +259,45 @@ class TestExceptionQuality:
         )
         result = duplicate_check(_invoice(), [record], as_of=AS_OF)
         assert any("variance" in calculation.name for calculation in result.calculations)
+
+
+class TestReusedInvoiceNumber:
+    """FIN-POL-005 §1 names punctuation-stripped invoice numbers as a fuzzy signal.
+
+    The gap these cover: the number comparison previously existed only inside the exact test,
+    which also requires the currency and gross amount to agree. A resubmission that reused
+    the number but changed the amount therefore matched neither test, and the amount change is
+    exactly what a supplier correcting and resubmitting an invoice would do.
+    """
+
+    def test_the_same_number_with_a_different_amount_is_a_fuzzy_match(self) -> None:
+        result = duplicate_check(
+            _invoice(reference="INV 2026 0388", gross="9900.00"),
+            [_record(gross="9240.00")],
+            as_of=AS_OF,
+        )
+        assert result.fuzzy_matches, "a reused invoice number must not pass unremarked"
+        assert result.recommended_outcome is Outcome.HOLD_FOR_INFORMATION
+
+    def test_the_reason_names_the_normalised_number(self) -> None:
+        """FIN-POL-007 §2 rejects generic notes; the record must say which number repeated."""
+        result = duplicate_check(
+            _invoice(reference="inv/2026-0388", gross="9900.00"),
+            [_record(gross="9240.00")],
+            as_of=AS_OF,
+        )
+        assert "INV20260388" in " ".join(result.fuzzy_matches[0].match_reasons)
+
+    def test_a_different_number_and_a_distant_amount_is_not_a_match(self) -> None:
+        """The signal must be the number, not the vendor: recurring invoices are normal."""
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0999", gross="15000.00"),
+            [_record(gross="9240.00")],
+            as_of=AS_OF,
+        )
+        assert not result.has_any_match
+
+    def test_a_reused_number_on_a_settled_record_still_rejects_when_exact(self) -> None:
+        """The new signal must not demote an exact settled match to a hold."""
+        result = duplicate_check(_invoice(), [_record()], as_of=AS_OF)
+        assert result.recommended_outcome is Outcome.REJECT_DUPLICATE

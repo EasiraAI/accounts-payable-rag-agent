@@ -47,6 +47,7 @@ from ap_agent.domain.results import DecisionReceipt
 from ap_agent.persistence.repository import (
     Repository,
     compute_idempotency_key,
+    compute_invoice_fingerprint,
     compute_request_hash,
 )
 from ap_agent.rag.retriever import Retriever
@@ -220,16 +221,25 @@ class CheckInvoiceHistoryInput(BaseModel):
 
 
 class CheckInvoiceHistoryOutput(BaseModel):
-    """Candidate prior records, not verdicts.
+    """Candidate prior records, plus the fingerprint of the invoice they were searched for.
 
     The tool searches; the rule engine decides what is a duplicate. That split keeps the
     FIN-POL-005 matching rules in one testable place instead of half in a backend.
+
+    ``exact_fingerprint_matches`` exists because the declared input carried the invoice
+    reference, currency and amount while the handler ignored all three and returned the
+    vendor's whole history. A review noted that the contract was wider than the
+    implementation. The fields are now used: the tool reports which candidates match on all
+    four FIN-POL-005 §1 exact-match fields, and still returns everything for the engine to
+    classify.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     candidates: list[InvoiceHistoryMatch]
     candidate_count: int
+    #: Record identifiers matching on vendor, normalised invoice number, currency and gross.
+    exact_fingerprint_matches: list[str] = Field(default_factory=list)
     statuses_searched: list[str]
     retrieved_at: datetime
 
@@ -250,9 +260,27 @@ CHECK_INVOICE_HISTORY = ToolSpec(
 def check_invoice_history(backends: MockBackends) -> object:
     def handler(arguments: CheckInvoiceHistoryInput) -> CheckInvoiceHistoryOutput:
         candidates = backends.find_history(vendor_id=arguments.vendor_id)
+        wanted = compute_invoice_fingerprint(
+            vendor_id=arguments.vendor_id,
+            invoice_reference=arguments.invoice_reference,
+            currency=arguments.currency,
+            gross_amount=arguments.gross_amount,
+        )
+        exact = [
+            record.record_id
+            for record in candidates
+            if compute_invoice_fingerprint(
+                vendor_id=record.vendor_id,
+                invoice_reference=record.invoice_reference,
+                currency=record.currency,
+                gross_amount=record.gross_amount,
+            )
+            == wanted
+        ]
         return CheckInvoiceHistoryOutput(
             candidates=candidates,
             candidate_count=len(candidates),
+            exact_fingerprint_matches=exact,
             statuses_searched=["PAID", "POSTED", "HELD", "REJECTED"],
             retrieved_at=datetime.now(tz=UTC),
         )
@@ -325,16 +353,21 @@ class SubmitFinanceDecisionInput(BaseModel):
     amount: MoneyAmount = Field(gt=Decimal("0"))
     currency: Annotated[str, Field(min_length=3, max_length=3)]
     vendor_id: NonEmptyStr
+    #: The invoice reference, needed for the cross-run invoice fingerprint. Not an
+    #: authorisation field: it identifies what is being posted, not permission to post it.
+    invoice_reference: NonEmptyStr
 
 
 SUBMIT_FINANCE_DECISION = ToolSpec(
     name="submit_finance_decision",
     purpose=(
         "Record a consequential outcome (posting, rejection) against a simulated ledger. "
-        "Deny-by-default: refuses unless the repository holds an APPROVED approval for this "
-        "run. Idempotent on a key derived from the run and approval. Targets a simulated "
-        "system and is incapable of moving money: there is no payment rail, no bank "
-        "credential and no network call in this code path."
+        "Deny-by-default: refuses unless the repository holds an approval for this run whose "
+        "signature requirement is met, whose outcome matches, and whose presented amount, "
+        "currency and vendor match the arguments. Idempotent on a key derived from the run, "
+        "the approval and the monetary facts. Refuses a second posting of the same invoice "
+        "across runs. Targets a simulated system and is incapable of moving money: there is "
+        "no payment rail, no bank credential and no network call in this code path."
     ),
     permission=ToolPermission.WRITE,
     timeout_seconds=5.0,
@@ -382,11 +415,51 @@ def submit_finance_decision(repository: Repository) -> object:
                 f"approval {arguments.approval_id} authorises "
                 f"{approval.requested_outcome.value}, not {arguments.outcome.value}",
             )
+        if not approval.signature_requirement_met:
+            # FIN-POL-003 §3 requires two approvals for a higher-risk transaction, one from
+            # Financial Control. An earlier version computed that requirement, displayed it
+            # to the approver, and let a single signature post: two independent reviews
+            # found the same gap. The tool now refuses until the requirement is met, and the
+            # gate refuses independently.
+            raise ToolPermissionDenied(
+                SUBMIT_FINANCE_DECISION.name,
+                f"approval {arguments.approval_id} does not yet meet its signature "
+                f"requirement: {approval.outstanding_requirement_detail()}",
+            )
+
+        # The decision must be for the transaction the approver was shown. A security review
+        # parked a run at the gate, mutated the request amount, and watched the inflated
+        # figure post: both gates compared only the run and the outcome, while the approval
+        # record held the presented amount all along and nothing read it.
+        presented = (
+            approval.presented_amount,
+            approval.presented_currency.upper(),
+            approval.presented_vendor_id,
+        )
+        supplied = (arguments.amount, arguments.currency.upper(), arguments.vendor_id)
+        if approval.presented_vendor_id and presented != supplied:
+            raise ToolPermissionDenied(
+                SUBMIT_FINANCE_DECISION.name,
+                f"approval {arguments.approval_id} authorises "
+                f"{approval.presented_amount} {approval.presented_currency} to vendor "
+                f"{approval.presented_vendor_id}, not {arguments.amount} "
+                f"{arguments.currency} to {arguments.vendor_id}; an approver's authority "
+                "applies to the figures they were shown",
+            )
 
         idempotency_key = compute_idempotency_key(
             run_id=arguments.run_id,
             approval_id=arguments.approval_id,
             outcome=arguments.outcome,
+            amount=arguments.amount,
+            currency=arguments.currency,
+            vendor_id=arguments.vendor_id,
+        )
+        invoice_fingerprint = compute_invoice_fingerprint(
+            vendor_id=arguments.vendor_id,
+            invoice_reference=arguments.invoice_reference,
+            currency=arguments.currency,
+            gross_amount=arguments.amount,
         )
         request_hash = compute_request_hash(arguments.model_dump(mode="json"))
 
@@ -406,6 +479,7 @@ def submit_finance_decision(repository: Repository) -> object:
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             approval_id=arguments.approval_id,
+            invoice_fingerprint=invoice_fingerprint,
             receipt=receipt,
         )
         return stored

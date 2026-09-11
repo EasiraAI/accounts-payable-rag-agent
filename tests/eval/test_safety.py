@@ -24,10 +24,10 @@ from pathlib import Path
 import pytest
 
 from ap_agent.config.settings import Settings
-from ap_agent.domain.enums import ApprovalStatus, EventType, Outcome, RunPhase, RunStatus
+from ap_agent.domain.enums import EventType, Outcome, RunPhase, RunStatus
 from ap_agent.domain.errors import ApprovalStateConflict, ToolPermissionDenied
 from ap_agent.domain.request import ApprovalDecision, Attachment, ProcessingRequest, UntrustedText
-from ap_agent.domain.results import ApprovalRequest
+from ap_agent.domain.results import ApprovalRequest, ApprovalSignature
 from ap_agent.llm.fake_client import FakeLLMClient
 from ap_agent.orchestration.machine import Orchestrator
 from ap_agent.persistence.repository import Repository
@@ -134,6 +134,7 @@ class TestApprovalGate:
                     amount=Decimal("17952.00"),
                     currency="AUD",
                     vendor_id="V-1001",
+                    invoice_reference="INV-2026-0451",
                 )
             )
         assert repository.count_decisions(state.run_id) == 0
@@ -155,6 +156,7 @@ class TestApprovalGate:
                     amount=Decimal("17952.00"),
                     currency="AUD",
                     vendor_id="V-1001",
+                    invoice_reference="INV-2026-0451",
                 )
             )
 
@@ -165,11 +167,14 @@ class TestApprovalGate:
         orchestrator = _orchestrator(settings, repository, retriever)
         state = orchestrator.start(_case("FIN-001"))
         assert state.approval_id is not None
-        repository.resolve_approval(
+        repository.add_approval_signature(
             state.approval_id,
-            status=ApprovalStatus.APPROVED,
-            decided_by="U-3081",
-            decided_by_role="DEPARTMENT_DIRECTOR",
+            ApprovalSignature(
+                approver_id="U-3081",
+                approver_role="DEPARTMENT_DIRECTOR",
+                effective_role="DEPARTMENT_DIRECTOR",
+                signed_at=AS_OF,
+            ),
         )
         handler = submit_finance_decision(repository)
         with pytest.raises(ToolPermissionDenied, match="authorises APPROVE_FOR_POSTING"):
@@ -182,6 +187,7 @@ class TestApprovalGate:
                     amount=Decimal("17952.00"),
                     currency="AUD",
                     vendor_id="V-1001",
+                    invoice_reference="INV-2026-0451",
                 )
             )
 
@@ -192,11 +198,14 @@ class TestApprovalGate:
         first = orchestrator.start(_case("FIN-001"))
         second = orchestrator.start(_case("FIN-005"))
         assert first.approval_id is not None
-        repository.resolve_approval(
+        repository.add_approval_signature(
             first.approval_id,
-            status=ApprovalStatus.APPROVED,
-            decided_by="U-3081",
-            decided_by_role="DEPARTMENT_DIRECTOR",
+            ApprovalSignature(
+                approver_id="U-3081",
+                approver_role="DEPARTMENT_DIRECTOR",
+                effective_role="DEPARTMENT_DIRECTOR",
+                signed_at=AS_OF,
+            ),
         )
         handler = submit_finance_decision(repository)
         with pytest.raises(ToolPermissionDenied, match="belongs to run"):
@@ -209,6 +218,7 @@ class TestApprovalGate:
                     amount=Decimal("11000.00"),
                     currency="AUD",
                     vendor_id="V-1001",
+                    invoice_reference="INV-2026-0451",
                 )
             )
 
@@ -239,7 +249,7 @@ class TestApprovalGate:
         orchestrator = _orchestrator(settings, repository, retriever)
         state = orchestrator.start(_case("FIN-001"))
         assert state.approval_id is not None
-        with pytest.raises(ApprovalStateConflict, match="sufficient authority"):
+        with pytest.raises(ApprovalStateConflict, match="may not approve"):
             orchestrator.approve(
                 state.run_id,
                 ApprovalDecision(
@@ -257,7 +267,7 @@ class TestApprovalGate:
         orchestrator = _orchestrator(settings, repository, retriever)
         state = orchestrator.start(_case("FIN-001"))
         assert state.approval_id is not None
-        with pytest.raises(ApprovalStateConflict, match="sufficient authority"):
+        with pytest.raises(ApprovalStateConflict, match="may not approve"):
             orchestrator.approve(
                 state.run_id,
                 ApprovalDecision(

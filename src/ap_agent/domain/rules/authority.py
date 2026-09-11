@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
+from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,6 +68,9 @@ class AuthorityRequirement(BaseModel):
     requires_second_approval: bool = False
     second_approval_reason: str = ""
     authority_register_version: str = AUTHORITY_REGISTER_VERSION
+    #: Substitutions the determination had to make, stated plainly. Currently populated when
+    #: the invoice currency differs from the policy currency and no rate service exists.
+    assumptions: list[str] = Field(default_factory=list)
     calculations: list[Calculation] = Field(default_factory=list)
     findings: list[PolicyFinding] = Field(default_factory=list)
 
@@ -81,6 +85,9 @@ class AuthorityValidation(BaseModel):
     applicable_limit: MoneyAmount | None
     authority_register_version: str = AUTHORITY_REGISTER_VERSION
     delegation_applied: str | None = None
+    #: True when this approver satisfies the FIN-POL-003 §3 requirement that one signature
+    #: come from Financial Control.
+    is_financial_control: bool = False
     reasons: list[str] = Field(default_factory=list)
     exceptions: list[ExceptionRecord] = Field(default_factory=list)
     findings: list[PolicyFinding] = Field(default_factory=list)
@@ -108,10 +115,69 @@ def _parse_role(raw: str) -> ApproverRole | None:
         return None
 
 
+#: Words that carry no discriminating power when matching a delegation scope to a case.
+_SCOPE_STOP_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "accounts",
+        "payable",
+        "invoice",
+        "invoices",
+        "approval",
+        "approvals",
+        "and",
+        "or",
+        "the",
+        "for",
+        "of",
+        "cost",
+        "centre",
+        "centres",
+        "center",
+        "centers",
+        "all",
+    }
+)
+
+
+def _scope_covers(scope: str, case_cost_centre: str | None) -> bool:
+    """Whether a delegation's scope covers this case's cost centre.
+
+    Scope is free text in the register, so this is a keyword overlap rather than a
+    structured match: a scope token must appear in the case's cost centre or vice versa,
+    after removing words common to every entry.
+
+    A scope naming no cost centre at all (only generic terms) is treated as unrestricted,
+    because an entry that names no restriction imposes none. An unknown cost centre against
+    a restricted scope is treated as *not* covered, which is the conservative direction: a
+    delegation whose applicability cannot be verified is not a delegation that applies.
+
+    This is a heuristic and is documented as one. A production register would carry
+    structured scope, and matching free text is exactly the kind of approximation that
+    should not be load-bearing. It is safe here because it can only ever *withhold*
+    authority: failing to match falls back to the approver's own role.
+    """
+    scope_tokens = {
+        token.strip(",.;:").lower() for token in scope.split() if len(token.strip(",.;:")) > 2
+    } - _SCOPE_STOP_WORDS
+    if not scope_tokens:
+        return True
+    if not case_cost_centre:
+        return False
+    case_tokens = {
+        token.strip(",.;:").lower()
+        for token in case_cost_centre.replace("-", " ").replace("_", " ").split()
+        if len(token.strip(",.;:")) > 2
+    } - _SCOPE_STOP_WORDS
+    if not case_tokens:
+        return False
+    return bool(scope_tokens & case_tokens)
+
+
 def required_authority(
     total: Money,
     *,
     higher_risk_reasons: Sequence[str],
+    policy_currency: str = "AUD",
 ) -> AuthorityRequirement:
     """Determine the approval requirement for a total commitment.
 
@@ -123,6 +189,25 @@ def required_authority(
     role = _minimum_role_for(total.amount)
     limit = AUTHORITY_LIMITS.get(role)
     requires_second = bool(higher_risk_reasons)
+    assumptions: list[str] = []
+
+    if total.currency.upper() != policy_currency:
+        # FIN-POL-009 §2 requires authority to be assessed in AUD at the corporate daily
+        # rate for the invoice date, citing the rate source and date. No rate service is
+        # configured, so the ladder is applied to the un-converted figure.
+        #
+        # This is recorded here, on the authority path, and not only by the matching rule.
+        # A controls review pointed out that the matching rule logged the substitution while
+        # the authority determination, which is the control that gates posting, logged
+        # nothing: a foreign-currency invoice was assessed against AUD thresholds silently.
+        assumptions.append(
+            f"Approval authority was assessed against the {policy_currency} matrix using the "
+            f"un-converted {total.currency} amount {total.amount}. FIN-POL-009 §2 requires "
+            f"assessment in {policy_currency} at the corporate daily rate for the invoice "
+            "date, with the rate source and date cited. No rate service is configured, so "
+            "the required role may be understated where the rate is below parity and "
+            "overstated where it is above."
+        )
 
     calculations = [
         Calculation(
@@ -168,6 +253,16 @@ def required_authority(
             )
         )
 
+    if assumptions:
+        findings.append(
+            PolicyFinding(
+                rule="authority_assessed_in_policy_currency",
+                policy_ref="FIN-POL-009 §2",
+                satisfied=False,
+                detail=assumptions[0],
+            )
+        )
+
     return AuthorityRequirement(
         amount=total.amount,
         currency=total.currency,
@@ -175,6 +270,7 @@ def required_authority(
         applicable_limit=limit,
         requires_second_approval=requires_second,
         second_approval_reason="; ".join(higher_risk_reasons),
+        assumptions=assumptions,
         calculations=calculations,
         findings=findings,
     )
@@ -187,20 +283,61 @@ def validate_approval(
     approver_role: str,
     delegation: DelegationRecord | None = None,
     requested_by: str | None = None,
+    case_cost_centre: str | None = None,
+    as_co_approver: bool = False,
     as_of: datetime,
 ) -> AuthorityValidation:
     """Check that a named approver may approve this transaction.
 
     Evaluated in this order, because each check can disqualify the approver outright:
-    self-approval, role recognition, delegation validity, then the monetary limit.
+    requester identification, self-approval, role recognition, delegation validity and
+    scope, then the monetary limit.
     """
     review = next_review_date(as_of.date())
     reasons: list[str] = []
     exceptions: list[ExceptionRecord] = []
     findings: list[PolicyFinding] = []
 
+    # ---- the requester must be known -------------------------------------------------
+    #
+    # A security review defeated the self-approval control by simply omitting the optional
+    # `requested_by` field from the processing request: `if requested_by and ...` made the
+    # check vacuously true, with no exception, no unknown and no finding. The requester is
+    # untrusted case input, so an absent value is a gap in the evidence, not a clean bill of
+    # health. It is now refused rather than skipped.
+    if not requested_by:
+        reasons.append(
+            "the request does not identify a requester, so self-approval and "
+            "segregation-of-duties cannot be checked"
+        )
+        exceptions.append(
+            ExceptionRecord(
+                category=ExceptionCategory.AUTHORITY_GAP,
+                failed_rule="validate_approval.requester_identified",
+                expected="the processing request to identify who raised it",
+                observed="no requester was supplied",
+                owner=EscalationOwner.FINANCIAL_CONTROL,
+                policy_refs=[POLICY_GENERAL, "FIN-POL-001 §4"],
+                next_review_date=review,
+                detail=(
+                    "FIN-POL-003 §1 bars a delegate from approving their own expense and "
+                    "FIN-POL-001 §4 requires the requester, receipter and approver to be "
+                    "distinct above AUD 25,000. Neither can be evaluated against an unknown "
+                    "requester, and an unverifiable control is not a satisfied one."
+                ),
+            )
+        )
+        return AuthorityValidation(
+            sufficient=False,
+            effective_role=None,
+            applicable_limit=requirement.applicable_limit,
+            reasons=reasons,
+            exceptions=exceptions,
+            findings=findings,
+        )
+
     # ---- self-approval ---------------------------------------------------------------
-    if requested_by and approver_id == requested_by:
+    if approver_id == requested_by:
         reasons.append(
             "the approver raised this request, and a delegate cannot approve their own "
             "expense or a purchase they personally benefit from"
@@ -277,6 +414,41 @@ def validate_approval(
                         ),
                     )
                 )
+            elif not _scope_covers(delegation.scope, case_cost_centre):
+                # FIN-POL-003 §4 makes scope a mandatory part of the register entry, so a
+                # delegation that does not cover this case confers nothing. A review found
+                # a facilities-scoped delegation being accepted for an industrial-supplies
+                # invoice: the field was stored and never read.
+                #
+                # An unknown cost centre is treated as not covered. That is the conservative
+                # direction: a delegation whose applicability cannot be verified is not a
+                # delegation that applies.
+                reasons.append(
+                    f"delegation {delegation.delegation_id} is scoped to "
+                    f"'{delegation.scope}', which does not cover cost centre "
+                    f"'{case_cost_centre or '(not supplied)'}'"
+                )
+                exceptions.append(
+                    ExceptionRecord(
+                        category=ExceptionCategory.AUTHORITY_GAP,
+                        failed_rule="validate_approval.delegation_scope_covers_case",
+                        expected=(
+                            f"a delegation whose scope covers cost centre "
+                            f"'{case_cost_centre or '(not supplied)'}'"
+                        ),
+                        observed=(
+                            f"delegation {delegation.delegation_id} is scoped to "
+                            f"'{delegation.scope}'"
+                        ),
+                        owner=EscalationOwner.FINANCIAL_CONTROL,
+                        policy_refs=[POLICY_DELEGATION],
+                        next_review_date=review,
+                        detail=(
+                            "Scope is a mandatory field of the authority-register entry, so "
+                            "a delegation outside its scope is not a source of authority."
+                        ),
+                    )
+                )
             else:
                 delegated_role = _parse_role(delegation.delegate_role)
                 if delegated_role is None:
@@ -311,6 +483,35 @@ def validate_approval(
                         )
 
     # ---- monetary limit --------------------------------------------------------------
+    if effective_role is ApproverRole.FINANCIAL_CONTROL and as_co_approver:
+        # FIN-POL-003 §3 requires that when two approvals are needed, "one approver must be
+        # from Financial Control". That is precisely the role's function: oversight, not a
+        # spending limit. So when a sufficient primary signature already exists, a Financial
+        # Control signature is valid as the co-approval even though the role carries no
+        # monetary limit of its own.
+        findings.append(
+            PolicyFinding(
+                rule="financial_control_co_approval",
+                policy_ref=POLICY_HIGHER_RISK,
+                satisfied=True,
+                detail=(
+                    f"{approver_id} signs as the Financial Control co-approver. The role "
+                    "carries no monetary limit in §2; the limit was satisfied by the primary "
+                    "approver."
+                ),
+            )
+        )
+        return AuthorityValidation(
+            sufficient=True,
+            effective_role=effective_role,
+            applicable_limit=None,
+            delegation_applied=delegation_applied,
+            is_financial_control=True,
+            reasons=reasons,
+            exceptions=exceptions,
+            findings=findings,
+        )
+
     if effective_role is ApproverRole.FINANCIAL_CONTROL:
         reasons.append(
             "Financial Control carries no monetary limit in FIN-POL-003 §2; it satisfies the "
@@ -332,6 +533,10 @@ def validate_approval(
             effective_role=effective_role,
             applicable_limit=requirement.applicable_limit,
             delegation_applied=delegation_applied,
+            # Insufficient as a sole approver, but it *is* a Financial Control signature, so
+            # the gate can count it towards the FIN-POL-003 §3 co-approver requirement. The
+            # flag and the sufficiency verdict answer different questions.
+            is_financial_control=True,
             reasons=reasons,
             exceptions=exceptions,
             findings=findings,
@@ -339,6 +544,7 @@ def validate_approval(
 
     effective_limit = AUTHORITY_LIMITS.get(effective_role)
     sufficient = effective_limit is None or requirement.amount <= effective_limit
+    is_financial_control = own_role is ApproverRole.FINANCIAL_CONTROL
 
     if sufficient and not reasons:
         findings.append(
@@ -392,6 +598,7 @@ def validate_approval(
         effective_role=effective_role,
         applicable_limit=effective_limit,
         delegation_applied=delegation_applied,
+        is_financial_control=is_financial_control,
         reasons=reasons,
         exceptions=exceptions,
         findings=findings,

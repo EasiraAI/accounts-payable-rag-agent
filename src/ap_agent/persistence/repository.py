@@ -54,6 +54,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Final
 
@@ -61,7 +62,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ap_agent.domain.enums import ApprovalStatus, Outcome, RunStatus
 from ap_agent.domain.errors import ApprovalStateConflict, RunNotFound
-from ap_agent.domain.results import ApprovalRequest, DecisionReceipt
+from ap_agent.domain.results import ApprovalRequest, ApprovalSignature, DecisionReceipt
 from ap_agent.domain.run_state import RunState
 
 _SCHEMA_PATH: Final = Path(__file__).with_name("schema.sql")
@@ -69,6 +70,31 @@ _SCHEMA_PATH: Final = Path(__file__).with_name("schema.sql")
 #: SQLite busy timeout. Long enough to ride out a concurrent writer on a local file,
 #: short enough that a genuine deadlock surfaces rather than hanging a request.
 _BUSY_TIMEOUT_SECONDS: Final = 5.0
+
+# Shape of the store that this version of the code expects, recorded in SQLite's
+# ``user_version`` pragma.
+#
+# It exists because every CREATE in schema.sql is ``IF NOT EXISTS``, which is right for a
+# fresh database and silently wrong for an existing one: a table that is already present
+# keeps whatever columns it was created with, and the statement reports success. Adding
+# ``decisions.invoice_fingerprint`` demonstrated the failure mode. New code read a column
+# that an existing store did not have, the CREATE was a no-op, and the first query against
+# the running database raised "no such column" at startup rather than at deploy time.
+#
+# So the version is checked, and an older store is migrated forward explicitly. A store
+# newer than the code is refused outright: a rollback that keeps running against a
+# forward-migrated database is how a constraint gets quietly dropped from the enforcement
+# path, and for this store the constraints *are* the exactly-once guarantee.
+SCHEMA_VERSION: Final = 2
+
+# Statements that carry a store from version N-1 to N, keyed by the version they produce.
+# Deliberately hand-written rather than derived from schema.sql: a migration has to say what
+# happens to rows that already exist, which a CREATE statement cannot express. The default
+# here is the one the partial unique index excludes, so decisions recorded before the column
+# existed do not collide with each other.
+_MIGRATIONS: Final[dict[int, tuple[str, ...]]] = {
+    2: ("ALTER TABLE decisions ADD COLUMN invoice_fingerprint TEXT NOT NULL DEFAULT ''",),
+}
 
 
 class StaleRunVersion(ApprovalStateConflict):
@@ -101,17 +127,51 @@ class StoredEvent(BaseModel):
     created_at: datetime
 
 
-def compute_idempotency_key(*, run_id: str, approval_id: str, outcome: Outcome) -> str:
+def compute_idempotency_key(
+    *,
+    run_id: str,
+    approval_id: str,
+    outcome: Outcome,
+    amount: Decimal,
+    currency: str,
+    vendor_id: str,
+) -> str:
     """Derive the idempotency key for a finance decision.
 
     Computed here from values the system controls, never accepted from a caller. A
     caller-supplied key would let a client defeat the guarantee by varying it, which is the
-    opposite of what an idempotency key is for. Keying on the run and the approval means a
-    replayed callback for the same approval produces the same key, while a genuinely
-    different approval on the same run produces a different one and is then refused by the
-    ``run_id`` uniqueness constraint.
+    opposite of what an idempotency key is for.
+
+    The amount, currency and vendor are part of the key material, not only the run and the
+    approval. A security review parked a run at the approval gate, mutated the request
+    amount, and watched the inflated figure post under the original approval: the key did not
+    depend on the amount, so the altered decision looked like the same decision. Folding the
+    monetary facts in means a changed amount produces a different key, which the ``run_id``
+    uniqueness constraint then refuses outright.
     """
-    material = f"{run_id}|{approval_id}|{outcome.value}"
+    material = f"{run_id}|{approval_id}|{outcome.value}|{amount}|{currency}|{vendor_id}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def compute_invoice_fingerprint(
+    *, vendor_id: str, invoice_reference: str, currency: str, gross_amount: Decimal
+) -> str:
+    """Derive the invoice fingerprint used to prevent a second posting of one invoice.
+
+    The four fields are exactly those FIN-POL-005 §1 names for exact duplicate matching:
+    vendor identifier, normalised invoice number, currency and gross amount. The invoice
+    number is normalised the same way the duplicate rule normalises it, so the constraint and
+    the rule agree about what counts as the same invoice.
+
+    This exists because per-run uniqueness was not enough. A review submitted one identical
+    invoice as three separate runs, approved each once, and received three posted decisions.
+    The duplicate-detection rule could not have caught it: it reads an upstream history
+    service that knows nothing about decisions this system recorded seconds earlier.
+    """
+    normalised = "".join(
+        character for character in invoice_reference if character.isalnum()
+    ).upper()
+    material = f"{vendor_id}|{normalised}|{currency.upper()}|{gross_amount}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
@@ -152,6 +212,23 @@ class Repository:
     def db_path(self) -> Path:
         return self._db_path
 
+    @property
+    def schema_version(self) -> int:
+        """The schema version of the open store. Read after construction it equals
+        ``SCHEMA_VERSION``, so it is a useful thing for an operator to assert on."""
+        return int(self._connection.execute("PRAGMA user_version").fetchone()[0])
+
+    def column_names(self, table: str) -> frozenset[str]:
+        """Columns present on ``table``, for operational checks and migration tests.
+
+        Identifier interpolation is unavoidable here: SQLite does not bind table names in a
+        PRAGMA. The argument is quoted so a caller cannot append a second statement, and the
+        only callers are this package's own tests and diagnostics.
+        """
+        quoted = table.replace('"', '""')
+        rows = self._connection.execute(f'PRAGMA table_info("{quoted}")').fetchall()
+        return frozenset(str(row[1]) for row in rows)
+
     def close(self) -> None:
         self._connection.close()
 
@@ -162,7 +239,45 @@ class Repository:
         self.close()
 
     def _apply_schema(self) -> None:
+        """Bring the connected database up to ``SCHEMA_VERSION``.
+
+        Order matters. Migrations run before the schema script, because a statement in the
+        script can depend on a column a migration adds: the partial unique index on
+        ``decisions.invoice_fingerprint`` cannot be created until the column exists.
+        Migrations only ever alter tables that are already present, so nothing they touch
+        depends on the script having run first.
+        """
+        version = self._store_version()
+        if version > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"{self._db_path} was written by a newer schema (version {version}); "
+                f"this build expects version {SCHEMA_VERSION}. Refusing to open it: "
+                "running older code against a newer store can drop a constraint from the "
+                "enforcement path."
+            )
+        for target in range(version + 1, SCHEMA_VERSION + 1):
+            for statement in _MIGRATIONS.get(target, ()):
+                self._connection.execute(statement)
+            # Interpolated because PRAGMA does not take bound parameters. ``target`` is a
+            # loop variable over a range of ints, never caller input.
+            self._connection.execute(f"PRAGMA user_version = {target:d}")
         self._connection.executescript(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        self._connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION:d}")
+
+    def _store_version(self) -> int:
+        """The schema version of the database on disk.
+
+        An empty file is a fresh install and needs no migration, so it reports the current
+        version. A populated store whose pragma is still 0 predates versioning; it is
+        treated as version 1, the shape the code had when the pragma was introduced.
+        """
+        pragma = int(self._connection.execute("PRAGMA user_version").fetchone()[0])
+        if pragma:
+            return pragma
+        populated = self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'runs'"
+        ).fetchone()
+        return 1 if populated else SCHEMA_VERSION
 
     @contextmanager
     def _write_transaction(self) -> Iterator[sqlite3.Cursor]:
@@ -374,7 +489,17 @@ class Repository:
         ).fetchone()
         if row is None:
             return None
-        return ApprovalRequest.model_validate_json(row["request_json"])
+        approval = ApprovalRequest.model_validate_json(row["request_json"])
+        # Signatures live in their own table so the uniqueness constraint can enforce one per
+        # person. The stored JSON carries a copy, but the table is authoritative, so it is
+        # re-read here rather than trusted.
+        cursor = self._connection.cursor()
+        try:
+            return approval.model_copy(
+                update={"signatures": self._load_signatures(cursor, approval_id)}
+            )
+        finally:
+            cursor.close()
 
     def find_pending_approval(self, run_id: str) -> ApprovalRequest | None:
         row = self._connection.execute(
@@ -389,28 +514,139 @@ class Repository:
             return None
         return ApprovalRequest.model_validate_json(row["request_json"])
 
-    def resolve_approval(
+    def _load_signatures(self, cursor: sqlite3.Cursor, approval_id: str) -> list[ApprovalSignature]:
+        rows = cursor.execute(
+            "SELECT * FROM approval_signatures WHERE approval_id = ? ORDER BY signed_at",
+            (approval_id,),
+        ).fetchall()
+        return [
+            ApprovalSignature(
+                approver_id=row["approver_id"],
+                approver_role=row["approver_role"],
+                effective_role=row["effective_role"],
+                applicable_limit=(
+                    Decimal(row["applicable_limit"])
+                    if row["applicable_limit"] is not None
+                    else None
+                ),
+                authority_register_version=row["authority_register_version"],
+                delegation_applied=row["delegation_applied"],
+                is_financial_control=bool(row["is_financial_control"]),
+                signed_at=_parse_iso(row["signed_at"]),
+                comment=row["comment"],
+            )
+            for row in rows
+        ]
+
+    def add_approval_signature(
+        self,
+        approval_id: str,
+        signature: ApprovalSignature,
+    ) -> tuple[ApprovalRequest, bool]:
+        """Record one signature towards an approval. Returns the approval and whether this
+        signature was a replay.
+
+        The gate is not opened here. This method collects signatures and updates the
+        approval's status to APPROVED only once every requirement is met: enough signatures,
+        from distinct people, including one from Financial Control when the transaction is
+        higher risk under FIN-POL-003 §3.
+
+        Replay detection is the ``(approval_id, approver_id)`` primary key. The same person
+        delivering twice collides, and the collision is the detection, so it survives a crash
+        between a read and a write exactly as the decision key does.
+        """
+        with self._write_transaction() as cursor:
+            row = cursor.execute(
+                "SELECT request_json, status FROM approvals WHERE approval_id = ?",
+                (approval_id,),
+            ).fetchone()
+            if row is None:
+                raise ApprovalStateConflict(f"approval {approval_id} does not exist")
+
+            existing = ApprovalRequest.model_validate_json(row["request_json"])
+            stored_status = ApprovalStatus(row["status"])
+
+            if stored_status is ApprovalStatus.REJECTED:
+                raise ApprovalStateConflict(
+                    f"approval {approval_id} is already REJECTED and cannot be approved"
+                )
+
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO approval_signatures (
+                    approval_id, approver_id, approver_role, effective_role,
+                    applicable_limit, authority_register_version, delegation_applied,
+                    is_financial_control, signed_at, comment
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    approval_id,
+                    signature.approver_id,
+                    signature.approver_role,
+                    signature.effective_role,
+                    str(signature.applicable_limit)
+                    if signature.applicable_limit is not None
+                    else None,
+                    signature.authority_register_version,
+                    signature.delegation_applied,
+                    1 if signature.is_financial_control else 0,
+                    _iso(signature.signed_at),
+                    signature.comment,
+                ),
+            )
+            replayed = cursor.rowcount == 0
+
+            signatures = self._load_signatures(cursor, approval_id)
+            updated = existing.model_copy(update={"signatures": signatures})
+
+            if updated.signature_requirement_met:
+                last = signatures[-1]
+                updated = updated.model_copy(
+                    update={
+                        "status": ApprovalStatus.APPROVED,
+                        "decided_at": last.signed_at,
+                        "decided_by": last.approver_id,
+                        "decided_by_role": last.approver_role,
+                        "decision_comment": last.comment,
+                    }
+                )
+
+            cursor.execute(
+                """
+                UPDATE approvals
+                   SET status = ?, request_json = ?, decided_at = ?, decided_by = ?,
+                       decided_by_role = ?, decision_comment = ?
+                 WHERE approval_id = ?
+                """,
+                (
+                    updated.status.value,
+                    updated.model_dump_json(),
+                    _iso(updated.decided_at) if updated.decided_at else None,
+                    updated.decided_by,
+                    updated.decided_by_role,
+                    updated.decision_comment,
+                    approval_id,
+                ),
+            )
+        return updated, replayed
+
+    def reject_approval(
         self,
         approval_id: str,
         *,
-        status: ApprovalStatus,
         decided_by: str,
         decided_by_role: str,
         comment: str = "",
         decided_at: datetime | None = None,
     ) -> tuple[ApprovalRequest, bool]:
-        """Record a human decision on an approval. Returns the approval and whether this was
-        a replay.
+        """Reject an approval outright. Returns the approval and whether this was a replay.
 
-        A second delivery of the same decision is a replay and returns the stored approval
-        unchanged. A second delivery of a *different* decision is a conflict and raises: one
-        approver approving and another rejecting the same request is a real disagreement
-        that a system must surface rather than resolve by arrival order.
+        Any single signatory may reject: a requirement for two approvals is a requirement for
+        two people to *agree*, so one refusal settles it. A second identical rejection is a
+        replay; a rejection after the approval completed is a conflict, because reversing a
+        recorded decision is not something arrival order should decide.
         """
-        if status is ApprovalStatus.PENDING:
-            raise ValueError("resolve_approval requires APPROVED or REJECTED")
         moment = decided_at or datetime.now(tz=UTC)
-
         with self._write_transaction() as cursor:
             row = cursor.execute(
                 "SELECT request_json, status, decided_by FROM approvals WHERE approval_id = ?",
@@ -422,17 +658,16 @@ class Repository:
             existing = ApprovalRequest.model_validate_json(row["request_json"])
             stored_status = ApprovalStatus(row["status"])
 
-            if stored_status is not ApprovalStatus.PENDING:
-                if stored_status is status:
-                    return existing, True
+            if stored_status is ApprovalStatus.REJECTED:
+                return existing, True
+            if stored_status is ApprovalStatus.APPROVED:
                 raise ApprovalStateConflict(
-                    f"approval {approval_id} is already {stored_status.value} and cannot be "
-                    f"changed to {status.value}"
+                    f"approval {approval_id} is already APPROVED and cannot be changed to REJECTED"
                 )
 
-            resolved = existing.model_copy(
+            rejected = existing.model_copy(
                 update={
-                    "status": status,
+                    "status": ApprovalStatus.REJECTED,
                     "decided_at": moment,
                     "decided_by": decided_by,
                     "decided_by_role": decided_by_role,
@@ -447,8 +682,8 @@ class Repository:
                  WHERE approval_id = ? AND status = ?
                 """,
                 (
-                    status.value,
-                    resolved.model_dump_json(),
+                    ApprovalStatus.REJECTED.value,
+                    rejected.model_dump_json(),
                     _iso(moment),
                     decided_by,
                     decided_by_role,
@@ -457,12 +692,9 @@ class Repository:
                     ApprovalStatus.PENDING.value,
                 ),
             )
-            if cursor.rowcount == 0:
-                # Another caller resolved it between the read and the update inside this
-                # transaction. Cannot happen under BEGIN IMMEDIATE, but asserting it means a
-                # future change to the locking strategy fails loudly rather than silently.
+            if cursor.rowcount == 0:  # pragma: no cover - BEGIN IMMEDIATE prevents this
                 raise ApprovalStateConflict(f"approval {approval_id} was resolved concurrently")
-        return resolved, False
+        return rejected, False
 
     # ---- decisions --------------------------------------------------------------------
 
@@ -472,6 +704,7 @@ class Repository:
         idempotency_key: str,
         request_hash: str,
         approval_id: str,
+        invoice_fingerprint: str,
         receipt: DecisionReceipt,
     ) -> tuple[DecisionReceipt, bool]:
         """Record an effective finance decision exactly once.
@@ -507,11 +740,29 @@ class Repository:
                     "at most one"
                 )
 
+            # One decision per invoice, across runs. Checked here and enforced by a unique
+            # index, so a concurrent second run cannot slip between this read and the insert.
+            duplicate = cursor.execute(
+                """
+                SELECT run_id, case_id FROM decisions
+                 WHERE invoice_fingerprint = ? AND invoice_fingerprint <> ''
+                """,
+                (invoice_fingerprint,),
+            ).fetchone()
+            if duplicate is not None:
+                raise ApprovalStateConflict(
+                    f"this invoice was already posted by run {duplicate['run_id']} "
+                    f"(case {duplicate['case_id']}); a second posting of the same vendor, "
+                    "invoice number, currency and amount is the double-payment path "
+                    "FIN-POL-005 exists to prevent"
+                )
+
             cursor.execute(
                 """
                 INSERT INTO decisions (idempotency_key, run_id, case_id, approval_id, outcome,
-                                       request_hash, response_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                       request_hash, response_json, created_at,
+                                       invoice_fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     idempotency_key,
@@ -522,6 +773,7 @@ class Repository:
                     request_hash,
                     receipt.model_dump_json(),
                     _iso(receipt.recorded_at),
+                    invoice_fingerprint,
                 ),
             )
         return receipt, False

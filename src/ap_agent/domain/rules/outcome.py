@@ -83,9 +83,23 @@ class OutcomeDecision(BaseModel):
 
 
 def _all_exceptions(
-    match: MatchResult, duplicates: DuplicateResult, vendor: VendorCheckResult
+    match: MatchResult,
+    duplicates: DuplicateResult,
+    vendor: VendorCheckResult,
+    additional: Sequence[ExceptionRecord],
 ) -> list[ExceptionRecord]:
-    return [*match.exceptions, *duplicates.exceptions, *vendor.exceptions]
+    """Every exception the run has recorded, from any control.
+
+    ``additional`` exists because an earlier version read only the three named results, and a
+    control added later recorded a blocking exception that the outcome never saw: the
+    payment-instruction check raised a blocking BANK_CHANGE and the run still computed
+    APPROVE_FOR_POSTING. Taking the run's whole exception set means a new control affects the
+    outcome by existing, rather than by also being wired into this signature.
+
+    Duplicates across the sources are harmless: the only question asked of this list is
+    whether any member is blocking.
+    """
+    return [*match.exceptions, *duplicates.exceptions, *vendor.exceptions, *additional]
 
 
 def decide_outcome(
@@ -96,9 +110,15 @@ def decide_outcome(
     authority: AuthorityRequirement,
     indicators: Sequence[FraudIndicator],
     invalid_reasons: Sequence[str] = (),
+    additional_exceptions: Sequence[ExceptionRecord] = (),
 ) -> OutcomeDecision:
-    """Resolve the processing outcome from the control results."""
-    exceptions = _all_exceptions(match, duplicates, vendor)
+    """Resolve the processing outcome from the control results.
+
+    ``additional_exceptions`` carries anything recorded by a control that is not one of the
+    three named results, such as the payment-instruction comparison or the segregation
+    checks. The caller passes the run's accumulated set.
+    """
+    exceptions = _all_exceptions(match, duplicates, vendor, additional_exceptions)
     blocking = [exception for exception in exceptions if exception.blocking]
     indicator_count = len(indicators)
 

@@ -85,6 +85,12 @@ class ApprovalResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     replayed: bool
+    #: Whether every required signature is now collected. False means the gate is still
+    #: closed and a further, different approver must sign (FIN-POL-003 §3).
+    signature_requirement_met: bool = True
+    signatures_collected: int = 0
+    signatures_required: int = 1
+    outstanding_requirement: str = ""
     run: RunView
 
 
@@ -125,6 +131,33 @@ def _to_view(state: RunState, application: Application) -> RunView:
             }
             for event in events
         ],
+    )
+
+
+def _approval_response(
+    state: RunState, application: Application, *, replayed: bool
+) -> ApprovalResponse:
+    """Build the approve/reject response, including how far the signature set has got.
+
+    A caller that delivers the first of two required signatures needs to know the gate is
+    still closed. Returning only the run would leave them to infer it from the status, and
+    "AWAITING_APPROVAL after a successful approval" is exactly the sort of thing a caller
+    misreads as a failure.
+    """
+    approval = (
+        application.repository.load_approval(state.approval_id) if state.approval_id else None
+    )
+    return ApprovalResponse(
+        replayed=replayed,
+        signature_requirement_met=(
+            approval.signature_requirement_met if approval is not None else True
+        ),
+        signatures_collected=approval.signatures_collected if approval is not None else 0,
+        signatures_required=approval.required_signature_count if approval is not None else 1,
+        outstanding_requirement=(
+            approval.outstanding_requirement_detail() if approval is not None else ""
+        ),
+        run=_to_view(state, application),
     )
 
 
@@ -257,7 +290,7 @@ def create_app(application: Application | None = None) -> FastAPI:
         ``replayed: true``; it records no second decision.
         """
         state, replayed = application.orchestrator.approve(run_id, body.to_decision())
-        return ApprovalResponse(replayed=replayed, run=_to_view(state, application))
+        return _approval_response(state, application, replayed=replayed)
 
     @app.post("/runs/{run_id}/reject", response_model=ApprovalResponse)
     def reject_run(
@@ -267,7 +300,7 @@ def create_app(application: Application | None = None) -> FastAPI:
     ) -> ApprovalResponse:
         """Reject a pending decision. Nothing is posted and the case is held."""
         state, replayed = application.orchestrator.reject(run_id, body.to_decision())
-        return ApprovalResponse(replayed=replayed, run=_to_view(state, application))
+        return _approval_response(state, application, replayed=replayed)
 
     @app.get("/evaluations", response_model=EvaluationReport)
     def list_evaluation_results(

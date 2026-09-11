@@ -23,6 +23,11 @@ from ap_agent.domain.rules.authority import (
 
 AS_OF = datetime(2026, 9, 11, tzinfo=UTC)
 
+#: The cost centre the delegations below are scoped to. FIN-POL-003 §4 makes scope a
+#: mandatory part of a register entry, and it is now compared: a delegation outside its
+#: scope confers nothing.
+CASE_COST_CENTRE = "CC-4100 Industrial Maintenance"
+
 
 def _delegation(
     *,
@@ -30,6 +35,7 @@ def _delegation(
     starts_on: date = date(2026, 9, 1),
     ends_on: date = date(2026, 9, 30),
     revoked: bool = False,
+    scope: str = "Accounts payable invoice approval, CC-4100 Industrial Maintenance",
 ) -> DelegationRecord:
     return DelegationRecord(
         delegation_id="DEL-2026-0044",
@@ -38,7 +44,7 @@ def _delegation(
         delegate_role=delegate_role,
         delegator_id="U-3081",
         delegator_role="DEPARTMENT_DIRECTOR",
-        scope="Accounts payable invoice approval, facilities cost centre",
+        scope=scope,
         starts_on=starts_on,
         ends_on=ends_on,
         revoked=revoked,
@@ -122,6 +128,8 @@ class TestApproverValidation:
             requirement,
             approver_id="U-3081",
             approver_role="DEPARTMENT_DIRECTOR",
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert validation.sufficient
@@ -133,6 +141,8 @@ class TestApproverValidation:
             requirement,
             approver_id="U-9001",
             approver_role="COST_CENTRE_MANAGER",
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert not validation.sufficient
@@ -141,7 +151,12 @@ class TestApproverValidation:
     def test_unknown_role_is_rejected(self) -> None:
         requirement = required_authority(Money.of("100.00", "AUD"), higher_risk_reasons=[])
         validation = validate_approval(
-            requirement, approver_id="U-1", approver_role="CHIEF_VIBES_OFFICER", as_of=AS_OF
+            requirement,
+            approver_id="U-1",
+            approver_role="CHIEF_VIBES_OFFICER",
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
+            as_of=AS_OF,
         )
         assert not validation.sufficient
 
@@ -153,7 +168,12 @@ class TestApproverValidation:
         """
         requirement = required_authority(Money.of("18400.00", "AUD"), higher_risk_reasons=[])
         validation = validate_approval(
-            requirement, approver_id="U-4400", approver_role="FINANCIAL_CONTROL", as_of=AS_OF
+            requirement,
+            approver_id="U-4400",
+            approver_role="FINANCIAL_CONTROL",
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
+            as_of=AS_OF,
         )
         assert not validation.sufficient
 
@@ -181,6 +201,8 @@ class TestDelegation:
             approver_id="U-7781",
             approver_role="COST_CENTRE_MANAGER",
             delegation=_delegation(),
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert validation.sufficient
@@ -194,6 +216,8 @@ class TestDelegation:
             approver_id="U-7781",
             approver_role="COST_CENTRE_MANAGER",
             delegation=_delegation(ends_on=date(2026, 9, 1)),
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert not validation.sufficient
@@ -206,6 +230,8 @@ class TestDelegation:
             approver_id="U-7781",
             approver_role="COST_CENTRE_MANAGER",
             delegation=_delegation(revoked=True),
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert not validation.sufficient
@@ -217,6 +243,8 @@ class TestDelegation:
             approver_id="U-7781",
             approver_role="COST_CENTRE_MANAGER",
             delegation=_delegation(starts_on=date(2026, 10, 1), ends_on=date(2026, 10, 31)),
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert not validation.sufficient
@@ -228,6 +256,8 @@ class TestDelegation:
             approver_id="U-0000",
             approver_role="COST_CENTRE_MANAGER",
             delegation=_delegation(),
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert not validation.sufficient
@@ -241,6 +271,8 @@ class TestDelegation:
             approver_id="U-7781",
             approver_role="CFO",
             delegation=_delegation(),
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert validation.sufficient
@@ -256,7 +288,121 @@ class TestApprovalEvidence:
             requirement,
             approver_id="U-3081",
             approver_role="DEPARTMENT_DIRECTOR",
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
             as_of=AS_OF,
         )
         assert validation.applicable_limit == Decimal("50000")
         assert validation.authority_register_version
+
+
+class TestRequesterMustBeKnown:
+    """S2: the self-approval control was defeated by omitting an optional field.
+
+    ``requested_by`` is caller-supplied, so an absent value is a gap in the evidence, not a
+    clean bill of health. A security review omitted it and approved its own request.
+    """
+
+    def test_an_absent_requester_refuses_the_approval(self) -> None:
+        requirement = required_authority(Money.of("1000.00", "AUD"), higher_risk_reasons=[])
+        validation = validate_approval(
+            requirement,
+            approver_id="U-5000",
+            approver_role="CFO",
+            requested_by=None,
+            case_cost_centre=CASE_COST_CENTRE,
+            as_of=AS_OF,
+        )
+        assert not validation.sufficient
+        assert any("does not identify a requester" in reason for reason in validation.reasons)
+        assert ExceptionCategory.AUTHORITY_GAP in {e.category for e in validation.exceptions}
+
+    def test_an_empty_requester_is_treated_as_absent(self) -> None:
+        requirement = required_authority(Money.of("1000.00", "AUD"), higher_risk_reasons=[])
+        validation = validate_approval(
+            requirement,
+            approver_id="U-5000",
+            approver_role="CFO",
+            requested_by="",
+            case_cost_centre=CASE_COST_CENTRE,
+            as_of=AS_OF,
+        )
+        assert not validation.sufficient
+
+
+class TestDelegationScope:
+    """S8: FIN-POL-003 §4 makes scope mandatory, and it was stored but never compared."""
+
+    def test_a_delegation_outside_its_scope_confers_nothing(self) -> None:
+        requirement = required_authority(Money.of("18400.00", "AUD"), higher_risk_reasons=[])
+        validation = validate_approval(
+            requirement,
+            approver_id="U-7781",
+            approver_role="COST_CENTRE_MANAGER",
+            delegation=_delegation(),
+            requested_by="U-2210",
+            case_cost_centre="CC-9000 Treasury",
+            as_of=AS_OF,
+        )
+        assert not validation.sufficient
+        assert any("scoped to" in reason for reason in validation.reasons)
+
+    def test_an_unknown_cost_centre_cannot_verify_a_scoped_delegation(self) -> None:
+        """A delegation whose applicability cannot be verified is not one that applies."""
+        requirement = required_authority(Money.of("18400.00", "AUD"), higher_risk_reasons=[])
+        validation = validate_approval(
+            requirement,
+            approver_id="U-7781",
+            approver_role="COST_CENTRE_MANAGER",
+            delegation=_delegation(),
+            requested_by="U-2210",
+            case_cost_centre=None,
+            as_of=AS_OF,
+        )
+        assert not validation.sufficient
+
+    def test_a_scope_naming_no_restriction_is_unrestricted(self) -> None:
+        """An entry that names no restriction imposes none."""
+        requirement = required_authority(Money.of("18400.00", "AUD"), higher_risk_reasons=[])
+        validation = validate_approval(
+            requirement,
+            approver_id="U-7781",
+            approver_role="COST_CENTRE_MANAGER",
+            delegation=_delegation(scope="Accounts payable invoice approval"),
+            requested_by="U-2210",
+            case_cost_centre=None,
+            as_of=AS_OF,
+        )
+        assert validation.sufficient
+
+
+class TestForeignCurrencyAuthority:
+    """FIN-POL-009 §2 requires authority to be assessed in AUD with a cited rate."""
+
+    def test_a_foreign_currency_amount_records_the_substitution(self) -> None:
+        requirement = required_authority(Money.of("300000.00", "USD"), higher_risk_reasons=[])
+        assert requirement.assumptions
+        assert "FIN-POL-009 §2" in requirement.assumptions[0]
+        assert any(
+            finding.rule == "authority_assessed_in_policy_currency" and not finding.satisfied
+            for finding in requirement.findings
+        )
+
+    def test_a_policy_currency_amount_records_no_substitution(self) -> None:
+        requirement = required_authority(Money.of("300000.00", "AUD"), higher_risk_reasons=[])
+        assert requirement.assumptions == []
+
+
+class TestFinancialControlFlag:
+    def test_financial_control_is_flagged_as_such(self) -> None:
+        """So the gate can tell whether the FIN-POL-003 §3 co-approver requirement is met."""
+        requirement = required_authority(Money.of("100.00", "AUD"), higher_risk_reasons=[])
+        validation = validate_approval(
+            requirement,
+            approver_id="U-4400",
+            approver_role="FINANCIAL_CONTROL",
+            requested_by="U-2210",
+            case_cost_centre=CASE_COST_CENTRE,
+            as_of=AS_OF,
+        )
+        assert validation.is_financial_control

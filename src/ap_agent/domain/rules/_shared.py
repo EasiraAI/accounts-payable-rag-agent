@@ -34,6 +34,18 @@ def add_business_days(start: date, days: int) -> date:
     return current
 
 
+def previous_business_day(start: date) -> date:
+    """The latest business day on or before ``start``.
+
+    FIN-POL-006 §2 pays a non-business-day due date on the *preceding* business day. Moving
+    forward instead would make the payment late, which is the whole point of the rule.
+    """
+    current = start
+    while current.weekday() >= 5:
+        current -= timedelta(days=1)
+    return current
+
+
 def next_review_date(as_of: date) -> date:
     """The review date placed on an exception raised now."""
     return add_business_days(as_of, EXCEPTION_REVIEW_BUSINESS_DAYS)

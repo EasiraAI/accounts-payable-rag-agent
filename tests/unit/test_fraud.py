@@ -299,3 +299,76 @@ class TestEscalationThreshold:
         )
         codes = [indicator.code for indicator in indicators]
         assert len(codes) == len(set(codes))
+
+
+class TestWeekendManualPaymentRequest:
+    """FIN-POL-005 §3 names a "weekend manual-payment request" as an indicator.
+
+    The defect these cover: the condition was ``as_of.weekday() >= 5``, the weekday of the
+    *run*. That made the indicator an accident of scheduling. The same case escalated when the
+    batch happened to execute on a Sunday and did not when it executed on a Monday, and a
+    request for weekend settlement submitted on a Tuesday could never be an indicator at all.
+    The settlement date is the fact the policy is about.
+    """
+
+    _MANUAL = UntrustedText(
+        content="Please arrange a manual payment for this invoice.",
+        origin="case notes",
+    )
+    _WEEKDAY = datetime(2026, 9, 8, tzinfo=UTC)  # a Tuesday
+
+    def test_weekend_settlement_is_an_indicator_on_a_weekday_run(self) -> None:
+        indicators = fraud_indicators(
+            invoice=_invoice(),
+            vendor=_vendor(),
+            texts=[self._MANUAL],
+            settlement_on_non_business_day=True,
+            as_of=self._WEEKDAY,
+        )
+        assert "WEEKEND_MANUAL_PAYMENT_REQUEST" in _codes(indicators)
+
+    def test_a_manual_request_settling_on_a_business_day_is_not_an_indicator(self) -> None:
+        """A manual payment is a control question under FIN-POL-006 §3, not a weekend one."""
+        indicators = fraud_indicators(
+            invoice=_invoice(),
+            vendor=_vendor(),
+            texts=[self._MANUAL],
+            settlement_on_non_business_day=False,
+            as_of=self._WEEKDAY,
+        )
+        assert "WEEKEND_MANUAL_PAYMENT_REQUEST" not in _codes(indicators)
+
+    def test_weekend_settlement_alone_is_not_an_indicator(self) -> None:
+        """Both halves are required: a due date on a Saturday is ordinary on its own."""
+        indicators = fraud_indicators(
+            invoice=_invoice(),
+            vendor=_vendor(),
+            texts=[],
+            settlement_on_non_business_day=True,
+            as_of=self._WEEKDAY,
+        )
+        assert indicators == []
+
+    def test_a_same_day_request_processed_on_a_weekend_is_still_an_indicator(self) -> None:
+        """A same-day payment settles today, so a weekend run is itself the weekend fact."""
+        indicators = fraud_indicators(
+            invoice=_invoice(),
+            vendor=_vendor(),
+            texts=[self._MANUAL],
+            settlement_on_non_business_day=False,
+            as_of=datetime(2026, 9, 13, tzinfo=UTC),  # a Sunday
+        )
+        assert "WEEKEND_MANUAL_PAYMENT_REQUEST" in _codes(indicators)
+
+    def test_the_description_names_the_approvals_a_manual_payment_needs(self) -> None:
+        """FIN-POL-006 §3: Treasury approval and Financial Control co-approval."""
+        indicators = fraud_indicators(
+            invoice=_invoice(),
+            vendor=_vendor(),
+            texts=[self._MANUAL],
+            settlement_on_non_business_day=True,
+            as_of=self._WEEKDAY,
+        )
+        indicator = next(i for i in indicators if i.code == "WEEKEND_MANUAL_PAYMENT_REQUEST")
+        assert "Treasury" in indicator.description
+        assert "FIN-POL-006 §3" in indicator.description

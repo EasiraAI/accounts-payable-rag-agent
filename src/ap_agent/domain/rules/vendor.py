@@ -14,22 +14,32 @@ missing is worse than no control, because it produces a clean record with no bas
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ap_agent.domain.enums import EscalationOwner, ExceptionCategory, VendorStatus
-from ap_agent.domain.evidence import Invoice, VendorRecord
+from ap_agent.domain.evidence import Invoice, InvoiceHistoryMatch, VendorRecord
 from ap_agent.domain.results import ExceptionRecord, PolicyFinding, Unknown
 from ap_agent.domain.rules._shared import next_review_date
 
 #: FIN-POL-003 §3: a vendor less than 30 days old is a higher-risk transaction.
 NEW_VENDOR_THRESHOLD_DAYS = 30
 
-#: FIN-POL-003 §3 pairs "a changed bank account" with the new-vendor window. The same 30-day
-#: horizon is applied, which is the shorter and therefore more conservative reading than
-#: treating any historical change as current risk.
-BANK_CHANGE_WINDOW_DAYS = 30
+#: FIN-POL-004 §2 attaches Financial Control co-approval to "the first subsequent payment"
+#: after a verified bank change, and FIN-POL-003 §3 lists "a changed bank account" as a
+#: higher-risk condition with no time limit at all.
+#:
+#: An earlier version applied a 30-day window here and justified it in a comment as "the
+#: shorter and therefore more conservative reading". That was backwards, and a controls
+#: review caught it: the window *removed* a control the policy applies without one. A vendor
+#: whose details changed 45 days ago, with no payment since, produced no exception and no
+#: higher-risk reason, so the co-approval the policy attaches to that first payment silently
+#: disappeared.
+#:
+#: The trigger is now the one the policy states: a change with no settled payment after it.
+#: The 30-day figure in FIN-POL-003 §3 belongs to vendor *age*, and is used as such above.
 
 POLICY_VENDOR_STATUS = "FIN-POL-004 §4"
 POLICY_BANK_CHANGE = "FIN-POL-004 §2"
@@ -47,7 +57,9 @@ class VendorCheckResult(BaseModel):
     higher_risk_reasons: list[str] = Field(default_factory=list)
     requires_control_escalation: bool = False
     name_mismatch: bool = False
-    bank_recently_changed: bool = False
+    #: True when the bank details changed and no settled payment has followed, which is what
+    #: FIN-POL-004 §2 means by "the first subsequent payment".
+    awaiting_first_payment_after_bank_change: bool = False
     exceptions: list[ExceptionRecord] = Field(default_factory=list)
     findings: list[PolicyFinding] = Field(default_factory=list)
     unknowns: list[Unknown] = Field(default_factory=list)
@@ -58,14 +70,45 @@ def _normalise_name(name: str) -> str:
     return " ".join(name.strip().lower().split())
 
 
+def _awaiting_first_payment_after_bank_change(
+    vendor: VendorRecord, history: Sequence[InvoiceHistoryMatch]
+) -> bool:
+    """Whether this would be the first payment since the vendor's details changed.
+
+    FIN-POL-004 §2 attaches Financial Control co-approval to "the first subsequent payment"
+    after a verified change, regardless of amount. That is a question about payment history
+    rather than about elapsed time, so it is answered from the settled records: if any paid or
+    posted record for this vendor is dated on or after the change, the first subsequent
+    payment has already happened and the requirement is discharged.
+
+    A change with no recorded date is treated as current. An unknown date is not evidence
+    that the change is old, and defaulting the unknown case to the higher-control branch is
+    the only safe direction.
+    """
+    if vendor.bank_details_changed_at is None:
+        return False
+    changed_on = vendor.bank_details_changed_at.date()
+    return not any(
+        record.vendor_id == vendor.vendor_id
+        and record.is_settled
+        and record.invoice_date >= changed_on
+        for record in history
+    )
+
+
 def vendor_status_check(
     vendor: VendorRecord | None,
     invoice: Invoice,
     *,
     as_of: datetime,
     requested_by: str | None = None,
+    history: Sequence[InvoiceHistoryMatch] = (),
 ) -> VendorCheckResult:
-    """Apply the vendor controls to an invoice."""
+    """Apply the vendor controls to an invoice.
+
+    ``history`` answers the FIN-POL-004 §2 question "is this the first payment since the
+    change", which the vendor record alone cannot answer.
+    """
     review = next_review_date(as_of.date())
     exceptions: list[ExceptionRecord] = []
     findings: list[PolicyFinding] = []
@@ -170,46 +213,66 @@ def vendor_status_check(
         )
 
     # ---- bank change ----------------------------------------------------------------
-    bank_recently_changed = vendor.bank_changed_recently(as_of, window_days=BANK_CHANGE_WINDOW_DAYS)
-    if bank_recently_changed:
-        higher_risk.append("bank account changed within the last 30 days")
+    awaiting_first_payment = _awaiting_first_payment_after_bank_change(vendor, history)
+    changed_on = (
+        f"{vendor.bank_details_changed_at:%Y-%m-%d}"
+        if vendor.bank_details_changed_at
+        else "an unrecorded date"
+    )
+    if awaiting_first_payment:
+        higher_risk.append(
+            f"bank account changed on {changed_on} with no settled payment since, so this "
+            "is the first payment after the change (FIN-POL-004 §2)"
+        )
         exceptions.append(
             ExceptionRecord(
                 category=ExceptionCategory.BANK_CHANGE,
-                failed_rule="vendor_status_check.bank_details_stable",
-                expected="no bank-detail change in the 30 days before payment",
+                failed_rule="vendor_status_check.first_payment_after_bank_change",
+                expected=(
+                    "Financial Control co-approval for the first payment after a verified "
+                    "bank change, regardless of amount"
+                ),
                 observed=(
-                    f"vendor {vendor.vendor_id} bank details changed on "
-                    f"{vendor.bank_details_changed_at:%Y-%m-%d}"
-                    if vendor.bank_details_changed_at
-                    else "bank details changed recently"
+                    f"vendor {vendor.vendor_id} bank details changed on {changed_on} and no "
+                    "paid or posted record exists on or after that date"
                 ),
                 owner=EscalationOwner.VENDOR_GOVERNANCE,
                 policy_refs=[POLICY_BANK_CHANGE, POLICY_HIGHER_RISK],
                 next_review_date=review,
                 detail=(
-                    "The first payment after a verified bank change requires Financial "
-                    "Control co-approval regardless of amount. Change instructions contained "
-                    "in an invoice, email or chat message are not sufficient evidence of a "
-                    "verified change."
+                    "The requirement attaches to the first subsequent payment, not to a "
+                    "window of days. Change instructions contained in an invoice, email or "
+                    "chat message are not sufficient evidence of a verified change."
                 ),
             )
         )
         findings.append(
             PolicyFinding(
-                rule="bank_details_stable",
+                rule="first_payment_after_bank_change_co_approved",
                 policy_ref=POLICY_BANK_CHANGE,
                 satisfied=False,
-                detail="bank details changed inside the 30-day window",
+                detail=f"bank details changed on {changed_on}; no settled payment has followed",
+            )
+        )
+    elif vendor.bank_details_changed_at is not None:
+        findings.append(
+            PolicyFinding(
+                rule="first_payment_after_bank_change_co_approved",
+                policy_ref=POLICY_BANK_CHANGE,
+                satisfied=True,
+                detail=(
+                    f"bank details last changed on {changed_on}, and a settled payment has "
+                    "followed, so the first-payment requirement is discharged"
+                ),
             )
         )
     else:
         findings.append(
             PolicyFinding(
-                rule="bank_details_stable",
+                rule="first_payment_after_bank_change_co_approved",
                 policy_ref=POLICY_BANK_CHANGE,
                 satisfied=True,
-                detail="no bank-detail change inside the 30-day window",
+                detail="no bank-detail change is recorded for this vendor",
             )
         )
 
@@ -228,33 +291,11 @@ def vendor_status_check(
         requires_escalation = True
         higher_risk.append(f"vendor risk flags present: {', '.join(vendor.risk_flags)}")
 
-    # ---- segregation of duties ------------------------------------------------------
-    if requested_by and vendor.created_by and requested_by == vendor.created_by:
-        exceptions.append(
-            ExceptionRecord(
-                category=ExceptionCategory.OTHER_CONTROL_RISK,
-                failed_rule="vendor_status_check.segregation_of_duties",
-                expected="the requester must not be the person who created the vendor record",
-                observed=(
-                    f"{requested_by} both requested this invoice and created vendor "
-                    f"{vendor.vendor_id}"
-                ),
-                owner=EscalationOwner.FINANCIAL_CONTROL,
-                policy_refs=[POLICY_SEGREGATION, "FIN-POL-003 §1"],
-                next_review_date=review,
-                detail="Any conflict requires escalation to Financial Control.",
-            )
-        )
-        requires_escalation = True
-    elif requested_by:
-        findings.append(
-            PolicyFinding(
-                rule="segregation_of_duties",
-                policy_ref=POLICY_SEGREGATION,
-                satisfied=True,
-                detail="requester and vendor creator are different people",
-            )
-        )
+    # Segregation of duties is not evaluated here. FIN-POL-001 §4 constrains the *approver*,
+    # and no approver exists at reconciliation time. An earlier version compared the
+    # requester against the vendor creator and, when they differed, recorded §4 as satisfied,
+    # which reported a control it had not evaluated. See domain/rules/segregation.py, which
+    # splits the section into what is knowable now and what needs an approver.
 
     # ---- name agreement -------------------------------------------------------------
     name_mismatch = _normalise_name(invoice.vendor_name) != _normalise_name(vendor.legal_name)
@@ -266,7 +307,11 @@ def vendor_status_check(
                 expected=f"invoice vendor name to match the master record '{vendor.legal_name}'",
                 observed=f"invoice states '{invoice.vendor_name}'",
                 owner=EscalationOwner.VENDOR_GOVERNANCE,
-                policy_refs=["FIN-POL-005 §3", POLICY_VENDOR_STATUS],
+                # FIN-POL-005 §3 lists "mismatched vendor name" as a fraud indicator, and
+                # FIN-POL-004 §1 requires legal-name validation. An earlier version cited §4,
+                # which is vendor *status* and says nothing about name agreement; a controls
+                # review caught the miscitation.
+                policy_refs=["FIN-POL-005 §3", "FIN-POL-004 §1"],
                 next_review_date=review,
                 blocking=False,
                 detail=(
@@ -279,7 +324,7 @@ def vendor_status_check(
         findings.append(
             PolicyFinding(
                 rule="legal_name_agreement",
-                policy_ref=POLICY_VENDOR_STATUS,
+                policy_ref="FIN-POL-004 §1",
                 satisfied=True,
                 detail="invoice vendor name matches the master record",
             )
@@ -291,7 +336,7 @@ def vendor_status_check(
         higher_risk_reasons=higher_risk,
         requires_control_escalation=requires_escalation,
         name_mismatch=name_mismatch,
-        bank_recently_changed=bank_recently_changed,
+        awaiting_first_payment_after_bank_change=awaiting_first_payment,
         exceptions=exceptions,
         findings=findings,
         unknowns=unknowns,

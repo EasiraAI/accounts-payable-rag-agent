@@ -16,7 +16,9 @@ failed line, expected value, actual value and difference.
 
 **The document total is checked against its own limit, not the sum of the line limits.**
 Summing the line limits would let a variance be divided across lines until each slice fits,
-which is the in-document form of the behaviour FIN-POL-002 §3 prohibits. The document limit
+which is the in-document form of the behaviour FIN-POL-002 §3 prohibits across invoices;
+applying that reasoning within a single document is this system's inference, not the
+policy's wording. The document limit
 uses the same formula as a goods line, applied to the purchase-order total.
 
 **Tax is excluded from the comparison.** Net against net. FIN-POL-002 §2 requires tax,
@@ -126,7 +128,11 @@ def _document_tolerance_limit(po: PurchaseOrder, currency: str) -> tuple[Money, 
 
     Summing the line allowances is wrong because it grows with the number of lines: a
     variance could be divided across lines until every slice fits and the total still passed,
-    which is the in-document form of the splitting behaviour FIN-POL-002 §3 prohibits.
+    which is the in-document form of the splitting behaviour FIN-POL-002 §3 prohibits. §3
+    addresses splitting across *invoices*; reading it across the lines of one document is an
+    inference from the same principle, recorded here so the citation is not mistaken for a
+    quotation. The document total itself is checked because FIN-POL-002 §1 requires matching
+    "per line and for the document total".
 
     Applying the goods band regardless of composition is also wrong: it would reject a
     service invoice whose single line is legitimately within the wider service band that
@@ -508,7 +514,9 @@ def three_way_match(  # one control expressed as one readable pass
                     note=(
                         "The widest single-line allowance on the order, not the sum of the line "
                         "allowances. Summing would let a variance be divided across lines until "
-                        "each slice fits, which FIN-POL-002 §3 prohibits."
+                        "each slice fits. FIN-POL-002 §1 requires a document-total check; §3 "
+                        "prohibits splitting a variance across invoices, and this limit applies "
+                        "the same principle within one document."
                     ),
                 )
             )

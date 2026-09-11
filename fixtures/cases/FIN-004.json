@@ -37,6 +37,7 @@
         "po_line_number": 1
       }
     ],
-    "invoice_date": "2026-09-08"
+    "invoice_date": "2026-09-08",
+    "cost_centre": "CC-4100 Industrial Maintenance"
   }
 }

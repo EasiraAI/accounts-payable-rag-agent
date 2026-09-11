@@ -7,8 +7,8 @@ from decimal import Decimal
 
 import pytest
 
-from ap_agent.domain.enums import ExceptionCategory, VendorStatus
-from ap_agent.domain.evidence import Invoice, VendorRecord
+from ap_agent.domain.enums import ExceptionCategory, InvoiceHistoryStatus, VendorStatus
+from ap_agent.domain.evidence import Invoice, InvoiceHistoryMatch, VendorRecord
 from ap_agent.domain.rules.vendor import vendor_status_check
 
 AS_OF = datetime(2026, 9, 11, tzinfo=UTC)
@@ -58,7 +58,7 @@ def _categories(result: object) -> set[ExceptionCategory]:
 
 class TestVendorStatus:
     def test_active_vendor_passes(self) -> None:
-        result = vendor_status_check(_vendor(), _invoice(), as_of=AS_OF)
+        result = vendor_status_check(_vendor(bank_changed_at=None), _invoice(), as_of=AS_OF)
         assert result.exceptions == []
         assert result.higher_risk_reasons == []
         assert all(finding.satisfied for finding in result.findings)
@@ -107,18 +107,84 @@ class TestHigherRiskTriggers:
         )
         assert not any("new vendor" in reason.lower() for reason in result.higher_risk_reasons)
 
-    def test_recent_bank_change_raises_a_bank_change_exception(self) -> None:
+    def test_a_bank_change_with_no_payment_since_raises_an_exception(self) -> None:
+        """FIN-POL-004 §2 attaches co-approval to "the first subsequent payment"."""
         result = vendor_status_check(
             _vendor(bank_changed_at=AS_OF - timedelta(days=2)), _invoice(), as_of=AS_OF
         )
         assert ExceptionCategory.BANK_CHANGE in _categories(result)
         assert result.higher_risk_reasons
+        assert result.awaiting_first_payment_after_bank_change
 
-    def test_old_bank_change_is_not_flagged(self) -> None:
+    def test_an_old_bank_change_with_no_payment_since_still_raises(self) -> None:
+        """The corrected reading of FIN-POL-004 §2.
+
+        An earlier version applied a 30-day window and called it "more conservative". It was
+        the opposite: a controls review pointed out that a vendor whose details changed 45
+        days ago, with no payment since, lost the co-approval requirement entirely. The
+        policy attaches it to the first subsequent payment, with no time limit.
+        """
         result = vendor_status_check(
             _vendor(bank_changed_at=AS_OF - timedelta(days=400)), _invoice(), as_of=AS_OF
         )
+        assert ExceptionCategory.BANK_CHANGE in _categories(result)
+        assert result.awaiting_first_payment_after_bank_change
+
+    def test_a_settled_payment_after_the_change_discharges_the_requirement(self) -> None:
+        paid_after = InvoiceHistoryMatch(
+            record_id="AP-2026-99001",
+            invoice_reference="INV-2026-0099",
+            vendor_id="V-1001",
+            currency="AUD",
+            gross_amount=Decimal("500.00"),
+            invoice_date=(AS_OF - timedelta(days=1)).date(),
+            status=InvoiceHistoryStatus.PAID,
+        )
+        result = vendor_status_check(
+            _vendor(bank_changed_at=AS_OF - timedelta(days=10)),
+            _invoice(),
+            as_of=AS_OF,
+            history=[paid_after],
+        )
         assert ExceptionCategory.BANK_CHANGE not in _categories(result)
+        assert not result.awaiting_first_payment_after_bank_change
+
+    def test_a_payment_before_the_change_does_not_discharge_it(self) -> None:
+        paid_before = InvoiceHistoryMatch(
+            record_id="AP-2026-99002",
+            invoice_reference="INV-2026-0098",
+            vendor_id="V-1001",
+            currency="AUD",
+            gross_amount=Decimal("500.00"),
+            invoice_date=(AS_OF - timedelta(days=60)).date(),
+            status=InvoiceHistoryStatus.PAID,
+        )
+        result = vendor_status_check(
+            _vendor(bank_changed_at=AS_OF - timedelta(days=10)),
+            _invoice(),
+            as_of=AS_OF,
+            history=[paid_before],
+        )
+        assert ExceptionCategory.BANK_CHANGE in _categories(result)
+
+    def test_a_held_record_after_the_change_does_not_discharge_it(self) -> None:
+        """Only a settled payment counts: a hold is not a payment."""
+        held_after = InvoiceHistoryMatch(
+            record_id="AP-2026-99003",
+            invoice_reference="INV-2026-0097",
+            vendor_id="V-1001",
+            currency="AUD",
+            gross_amount=Decimal("500.00"),
+            invoice_date=(AS_OF - timedelta(days=1)).date(),
+            status=InvoiceHistoryStatus.HELD,
+        )
+        result = vendor_status_check(
+            _vendor(bank_changed_at=AS_OF - timedelta(days=10)),
+            _invoice(),
+            as_of=AS_OF,
+            history=[held_after],
+        )
+        assert ExceptionCategory.BANK_CHANGE in _categories(result)
 
     def test_overseas_account_is_higher_risk(self) -> None:
         result = vendor_status_check(_vendor(bank_country="GB"), _invoice(), as_of=AS_OF)
@@ -135,20 +201,23 @@ class TestHigherRiskTriggers:
         assert result.requires_control_escalation
 
 
-class TestSegregationOfDuties:
-    """FIN-POL-001 §4 and FIN-POL-003 §1."""
+class TestSegregationIsNotEvaluatedHere:
+    """FIN-POL-001 §4 constrains the *approver*, so it cannot be evaluated at reconciliation.
 
-    def test_requester_who_created_the_vendor_is_an_exception(self) -> None:
-        result = vendor_status_check(
-            _vendor(created_by="U-5000"), _invoice(), as_of=AS_OF, requested_by="U-5000"
-        )
-        assert ExceptionCategory.OTHER_CONTROL_RISK in _categories(result)
+    An earlier version compared the requester against the vendor creator and, when they
+    differed, recorded §4 as satisfied. A controls review pointed out that this tested a
+    relationship the policy does not constrain and reported a section as satisfied whose
+    actual requirements had never been evaluated. The checks now live in
+    ``domain/rules/segregation.py`` and are exercised by ``test_segregation.py``.
+    """
 
-    def test_different_requester_and_creator_passes(self) -> None:
+    def test_no_segregation_finding_is_claimed_here(self) -> None:
         result = vendor_status_check(
             _vendor(created_by="U-1140"), _invoice(), as_of=AS_OF, requested_by="U-5000"
         )
-        assert ExceptionCategory.OTHER_CONTROL_RISK not in _categories(result)
+        assert not any(finding.rule.startswith("segregation") for finding in result.findings), (
+            "the vendor check must not claim a control it does not evaluate"
+        )
 
 
 class TestNameAgreement:

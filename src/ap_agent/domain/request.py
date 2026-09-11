@@ -116,6 +116,13 @@ class ProcessingRequest(BaseModel):
     payment_terms_days: int | None = None
     lines: list[RequestLine] = Field(default_factory=list)
     requested_by: str | None = None
+    #: The cost centre the spend belongs to. Needed to verify that a delegation's scope
+    #: covers this case: FIN-POL-003 §4 makes scope a mandatory part of the register entry,
+    #: and a scope that is stored but never compared confers authority it should not. A
+    #: security review found a facilities-scoped delegation accepted for an
+    #: industrial-supplies invoice. An absent cost centre means a scoped delegation cannot
+    #: be verified, and is therefore not applied.
+    cost_centre: str | None = None
 
     @model_validator(mode="after")
     def _normalise(self) -> Self:
@@ -196,6 +203,18 @@ class ProcessingRequest(BaseModel):
     @property
     def invoice_date_supplied(self) -> bool:
         return self.invoice_date is not None
+
+    @property
+    def tax_separated(self) -> bool:
+        """Whether the submission stated its tax and net, rather than a gross alone.
+
+        ``to_invoice`` derives a zero tax when neither component is supplied, which makes a
+        gross-only submission indistinguishable on the invoice object from a supplier
+        declaring an untaxed supply. The two mean opposite things to the tax assessment under
+        FIN-POL-002 §2, so the distinction is kept here, at the boundary where it is still
+        visible.
+        """
+        return self.net_amount is not None or self.tax_amount is not None
 
 
 class ApprovalDecision(BaseModel):

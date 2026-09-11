@@ -254,7 +254,8 @@ class TestApproval:
             },
         )
         assert response.status_code == 409
-        assert "authority" in response.json()["detail"]
+        assert "may not approve" in response.json()["detail"]
+        assert "limit of 10000" in response.json()["detail"]
         assert client.get(f"/runs/{run_id}").json()["decision"] is None
 
     def test_a_fabricated_approval_id_is_409(self, client: TestClient) -> None:

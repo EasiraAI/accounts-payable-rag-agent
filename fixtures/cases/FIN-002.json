@@ -36,6 +36,7 @@
         "po_line_number": 1
       }
     ],
-    "invoice_date": "2026-09-10"
+    "invoice_date": "2026-09-10",
+    "cost_centre": "CC-2200 Facilities"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "_comment": "Simulated authority register (FIN-POL-003 §4). Every entry carries delegate, delegator, scope, start and end, because the policy makes all five mandatory and states that email alone is not sufficient. There is no field in which to record an email approval. The expired and revoked entries exist so that the invalid paths are exercised by fixtures and not only by unit tests.",
+  "_comment": "Simulated authority register (FIN-POL-003 \u00a74). Every entry carries delegate, delegator, scope, start and end, because the policy makes all five mandatory and states that email alone is not sufficient. There is no field in which to record an email approval. The expired and revoked entries exist so the invalid paths are exercised by fixtures and not only by unit tests. Scope names a cost centre because scope is now enforced: a security review found a facilities-scoped delegation accepted for an industrial-supplies invoice because the field was stored and never compared.",
   "register_version": "FIN-POL-003 v4.0",
   "delegations": {
     "DEL-2026-0044": {
@@ -9,20 +9,20 @@
       "delegate_role": "DEPARTMENT_DIRECTOR",
       "delegator_id": "U-3081",
       "delegator_role": "DEPARTMENT_DIRECTOR",
-      "scope": "Accounts payable invoice approval, facilities and maintenance cost centres",
+      "scope": "Accounts payable invoice approval, CC-4100 Industrial Maintenance",
       "starts_on": "@as_of-10d",
       "ends_on": "@as_of+20d",
       "revoked": false
     },
     "DEL-2026-0031": {
-      "_comment": "Expired. FIN-POL-003 §4: invalid even if an earlier invoice was approved under it.",
+      "_comment": "Expired. FIN-POL-003 \u00a74: invalid even if an earlier invoice was approved under it.",
       "delegation_id": "DEL-2026-0031",
       "register_version": "FIN-POL-003 v4.0",
       "delegate_id": "U-7781",
       "delegate_role": "EXECUTIVE_DIRECTOR",
       "delegator_id": "U-2001",
       "delegator_role": "EXECUTIVE_DIRECTOR",
-      "scope": "Accounts payable invoice approval, all cost centres",
+      "scope": "Accounts payable invoice approval, CC-4100 Industrial Maintenance",
       "starts_on": "@as_of-120d",
       "ends_on": "@as_of-30d",
       "revoked": false
@@ -35,7 +35,7 @@
       "delegate_role": "CFO",
       "delegator_id": "U-1000",
       "delegator_role": "CFO",
-      "scope": "Treasury payment release",
+      "scope": "Treasury payment release, CC-9000 Treasury",
       "starts_on": "@as_of-5d",
       "ends_on": "@as_of+25d",
       "revoked": true

@@ -165,6 +165,7 @@ def fraud_indicators(
     vendor: VendorRecord | None,
     texts: Sequence[UntrustedText],
     history: Sequence[InvoiceHistoryMatch] = (),
+    settlement_on_non_business_day: bool = False,
     as_of: datetime,
 ) -> list[FraudIndicator]:
     """Collect the FIN-POL-005 §3 indicators present in a case.
@@ -220,10 +221,29 @@ def fraud_indicators(
                 text.origin,
             )
         manual = _contains_any(text.content, _MANUAL_PAYMENT_TERMS)
-        if manual and as_of.weekday() >= 5:
+        # FIN-POL-005 §3 names a "weekend manual-payment request". Two facts make one: the
+        # request has to be for a manual or same-day payment, and the settlement it asks for
+        # has to fall outside business days.
+        #
+        # An earlier version tested ``as_of.weekday() >= 5``, which is the weekday of the
+        # *run*. That made the indicator an accident of scheduling: the same case escalated
+        # when the batch happened to run on a Sunday and did not when it ran on a Monday, and
+        # a request for weekend settlement submitted on a Tuesday could never be an indicator
+        # at all. The settlement date is the fact the policy is about, so it is computed by
+        # the payment-terms rule from the invoice and the agreed terms, and passed in.
+        if manual and (settlement_on_non_business_day or as_of.weekday() >= 5):
+            occasion = (
+                "the payment would settle on a non-business day"
+                if settlement_on_non_business_day
+                else f"the request is being processed on {as_of.strftime('%A')}"
+            )
             add(
                 "WEEKEND_MANUAL_PAYMENT_REQUEST",
-                f"Manual or same-day payment requested outside business days: {', '.join(manual)}",
+                (
+                    f"Manual or same-day payment requested ({', '.join(manual)}) and "
+                    f"{occasion}. FIN-POL-006 §3 requires Treasury approval and Financial "
+                    "Control co-approval for a manual or same-day payment."
+                ),
                 POLICY_INDICATORS,
                 text.origin,
             )

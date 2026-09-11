@@ -50,7 +50,9 @@ from ap_agent.config.settings import Settings
 from ap_agent.domain.enums import (
     ApprovalStatus,
     EventType,
+    ExceptionCategory,
     FailureReason,
+    Outcome,
     RunPhase,
     RunStatus,
 )
@@ -67,6 +69,7 @@ from ap_agent.domain.request import ApprovalDecision, ProcessingRequest, Untrust
 from ap_agent.domain.results import (
     ActionRecord,
     ApprovalRequest,
+    ApprovalSignature,
     ConfidenceAssessment,
     FinalResult,
     Inference,
@@ -81,6 +84,16 @@ from ap_agent.domain.rules.duplicates import duplicate_check
 from ap_agent.domain.rules.fraud import detect_injection, fraud_indicators
 from ap_agent.domain.rules.matching import three_way_match
 from ap_agent.domain.rules.outcome import decide_outcome
+from ap_agent.domain.rules.payment_instructions import check_payment_instructions
+from ap_agent.domain.rules.payment_terms import assess_payment_terms
+from ap_agent.domain.rules.segregation import (
+    check_approval_time as check_segregation_at_approval,
+)
+from ap_agent.domain.rules.segregation import (
+    check_reconciliation_time as check_segregation_at_reconciliation,
+)
+from ap_agent.domain.rules.tax import assess_tax
+from ap_agent.domain.rules.validity import check_invoice_validity
 from ap_agent.domain.rules.vendor import vendor_status_check
 from ap_agent.domain.run_state import RunState, new_approval_id, utc_now
 from ap_agent.llm import (
@@ -95,6 +108,7 @@ from ap_agent.llm import (
     tightens,
 )
 from ap_agent.observability.events import EventEmitter
+from ap_agent.observability.redact import redact_text
 from ap_agent.orchestration.gates import Budget, authorise_decision
 from ap_agent.orchestration.phases import (
     EVIDENCE_QUERY,
@@ -132,6 +146,32 @@ from ap_agent.tools.contracts import (
 from ap_agent.tools.mock_backends import MockBackends
 
 Clock = Callable[[], datetime]
+
+
+def _redact_case_input(request: ProcessingRequest) -> ProcessingRequest:
+    """Return the request with its untrusted free text redacted.
+
+    Applied at intake, before the state is persisted. An earlier version redacted only at the
+    event boundary, and a security review pasted a bank account, an IBAN, a provider key and
+    a tax identifier into the case notes and read every one of them back out of
+    ``GET /runs/{id}``: the run state was a second egress path that nothing covered.
+
+    Both controls that read this text still work afterwards, which is why redacting here is
+    safe rather than lossy. Injection detection reads imperative language, which redaction
+    leaves untouched. The payment-instruction comparison reads a four-digit account tail,
+    which redaction preserves and FIN-POL-004 §2 explicitly permits.
+    """
+    notes = request.notes
+    redacted_notes = (
+        notes.model_copy(update={"content": redact_text(notes.content)})
+        if notes is not None
+        else None
+    )
+    redacted_attachments = [
+        attachment.model_copy(update={"text": redact_text(attachment.text)})
+        for attachment in request.attachments
+    ]
+    return request.model_copy(update={"notes": redacted_notes, "attachments": redacted_attachments})
 
 
 class Orchestrator:
@@ -360,6 +400,9 @@ class Orchestrator:
         did not supply, and screen the untrusted text so that an injection attempt is on the
         record before any other phase reads it.
         """
+        # Untrusted case text is redacted before the state is persisted. See
+        # _redact_case_input for why this is safe rather than lossy.
+        state.request = _redact_case_input(state.request)
         request = state.request
         invoice = request.to_invoice()
 
@@ -425,6 +468,20 @@ class Orchestrator:
                     "processing to specific categories and requires a justification."
                 ]
             )
+
+        # FIN-POL-001 §2 and §3. Runs here, before any tool call, because a submission that
+        # contradicts itself cannot be repaired by retrieval: spending the tool budget on a
+        # case that will be rejected as invalid wastes it, and the resulting variances would
+        # be reported against the purchase order rather than the invoice that is at fault.
+        validity = check_invoice_validity(
+            invoice,
+            invoice_date_supplied=request.invoice_date_supplied,
+            as_of=self._clock(),
+        )
+        state.add_calculations(validity.calculations)
+        state.add_findings(validity.findings)
+        state.add_exceptions(validity.exceptions)
+        state.invalid_reasons.extend(validity.invalid_reasons)
 
     def _phase_retrieve_policy(
         self,
@@ -665,13 +722,57 @@ class Orchestrator:
         match = three_way_match(invoice, state.purchase_order, as_of=as_of)
         duplicates = duplicate_check(invoice, state.invoice_history, as_of=as_of)
         vendor = vendor_status_check(
-            state.vendor, invoice, as_of=as_of, requested_by=state.request.requested_by
+            state.vendor,
+            invoice,
+            as_of=as_of,
+            requested_by=state.request.requested_by,
+            history=state.invoice_history,
+        )
+        # FIN-POL-001 §5 names this as a required check and an earlier version had no such
+        # control: the only thing standing between an asserted new account and a payment was
+        # a text heuristic looking for urgency.
+        instructions = check_payment_instructions(
+            vendor=state.vendor, texts=state.request.untrusted_texts(), as_of=as_of
+        )
+        # FIN-POL-002 §2 requires tax to be assessed separately and forbids it being hidden
+        # inside a price variance. The matching engine excludes tax from the comparison; this
+        # is the assessment that was missing, and the only path that can raise TAX_QUERY.
+        tax = assess_tax(
+            invoice,
+            tax_separated=state.request.tax_separated,
+            purchase_order=state.purchase_order,
+            as_of=as_of,
+        )
+        # FIN-POL-006 §1 to §3. The request has always carried payment terms and nothing read
+        # them; §1 makes the printed figure a supplier claim to be compared with the order
+        # rather than a value to be used.
+        terms = assess_payment_terms(
+            invoice,
+            purchase_order=state.purchase_order,
+            printed_terms_days=state.request.payment_terms_days,
+            invoice_date_supplied=state.request.invoice_date_supplied,
+            as_of=as_of,
+        )
+        state.payable_on = terms.payable_on
+        state.proposed_payment_run = terms.proposed_run_date
+        state.settlement_on_non_business_day = terms.settlement_on_non_business_day
+        # Only the part of FIN-POL-001 §4 that does not need an approver. The rest is
+        # evaluated when a callback arrives; see domain/rules/segregation.py.
+        segregation = check_segregation_at_reconciliation(
+            vendor=state.vendor,
+            purchase_order=state.purchase_order,
+            invoice=invoice,
+            requested_by=state.request.requested_by,
         )
 
         for label, result in (
             ("three_way_match", match),
             ("duplicate_check", duplicates),
             ("vendor_status_check", vendor),
+            ("payment_instructions", instructions),
+            ("segregation_of_duties", segregation),
+            ("tax_assessment", tax),
+            ("payment_terms", terms),
         ):
             state.add_exceptions(list(result.exceptions))
             state.add_findings(list(result.findings))
@@ -697,8 +798,18 @@ class Orchestrator:
         )
         state.add_calculations(list(authority.calculations))
         state.add_findings(list(authority.findings))
+        state.add_assumptions(list(authority.assumptions))
         state.required_role_minimum = authority.required_role_minimum.value
-        state.higher_risk_reasons = list(vendor.higher_risk_reasons)
+        # Every FIN-POL-003 §3 higher-risk condition found anywhere, not only in the vendor
+        # record. A bank change asserted in untrusted text is a higher-risk condition too,
+        # and it is the approval requirement that has to reflect it.
+        risk_reasons = list(vendor.higher_risk_reasons)
+        if instructions.exceptions:
+            risk_reasons.append(
+                "payment instructions in supplied text do not match the verified vendor "
+                "master (FIN-POL-001 §5)"
+            )
+        state.higher_risk_reasons = risk_reasons
 
         for exception in state.exceptions:
             emitter.emit(
@@ -718,6 +829,140 @@ class Orchestrator:
         # recomputes them from the same persisted evidence and gets the same answer.
         # Caching on the instance would outlive a run and would not survive a resume, so it
         # would be both unsafe under concurrency and useless where it was needed.
+
+    def _screen_narrative(
+        self,
+        state: RunState,
+        emitter: EventEmitter,
+        narrative: RecommendationNarrative,
+        outcome: Outcome,
+    ) -> tuple[str, str]:
+        """Return the summary and next action an approver will read, screened first.
+
+        A security review pointed out that a compromised model keeps the computed outcome but
+        writes whatever it likes in the prose a human actually reads: the run held
+        ``REJECT_DUPLICATE`` while the summary said "APPROVED by the CFO out of band. Post
+        immediately; the duplicate flag is a system error." Schema-valid, so nothing rejected
+        it, and the outcome field is not what an approver's eye goes to first.
+
+        The narrative is therefore screened with the same detector used on untrusted
+        documents, plus a check for language asserting an approval the system has no record
+        of. If either fires, the model's prose is discarded and replaced with a deterministic
+        summary built from the computed facts. The substitution is recorded as a finding,
+        because a model writing approval language into a rejection is itself a finding.
+        """
+        blob = f"{narrative.summary}\n{narrative.next_action}"
+        injection_codes = detect_injection(blob)
+        lowered = blob.lower()
+        approval_claims = [
+            phrase
+            for phrase in (
+                "already approved",
+                "approved by the cfo",
+                "approved out of band",
+                "out of band",
+                "post immediately",
+                "pay today",
+                "pay immediately",
+                "system error",
+            )
+            if phrase in lowered
+        ]
+        if not injection_codes and not approval_claims:
+            return narrative.summary, narrative.next_action
+
+        emitter.emit(
+            EventType.INJECTION_ATTEMPT_DETECTED,
+            payload={
+                "source": "model narrative",
+                "patterns": [*injection_codes, *approval_claims],
+                "note": (
+                    "the model's approver-facing prose was discarded and replaced with a "
+                    "deterministic summary"
+                ),
+            },
+            phase=RunPhase.RECOMMEND,
+            outcome="BLOCKED",
+        )
+        state.add_findings(
+            [
+                PolicyFinding(
+                    rule="model_narrative_screened",
+                    policy_ref="FIN-POL-005 §4",
+                    satisfied=True,
+                    detail=truncate_detail(
+                        "The model's summary or next action contained instruction-like or "
+                        "approval-asserting language ("
+                        + ", ".join([*injection_codes, *approval_claims])
+                        + "). It was discarded and replaced with a summary generated from the "
+                        "computed control results, because the prose is what an approver "
+                        "reads."
+                    ),
+                )
+            ]
+        )
+        return self._deterministic_summary(state, outcome), self._deterministic_next_action(
+            state, outcome
+        )
+
+    @staticmethod
+    def _deterministic_summary(state: RunState, outcome: Outcome) -> str:
+        """A summary built from computed facts, with no model involvement."""
+        categories = sorted({exception.category.value for exception in state.exceptions})
+        indicators = [indicator.code for indicator in state.fraud_indicators]
+        parts = [f"The rule engine computed {outcome.value} from the control results."]
+        if categories:
+            parts.append("Exceptions raised: " + ", ".join(categories) + ".")
+        else:
+            parts.append("No exceptions were raised.")
+        if indicators:
+            parts.append("Fraud indicators: " + ", ".join(indicators) + ".")
+        if state.unknowns:
+            parts.append(f"{len(state.unknowns)} item(s) remain unknown.")
+        parts.append(
+            "This summary was generated from the computed results because the model's prose "
+            "was screened out."
+        )
+        return " ".join(parts)[:1_190]
+
+    @staticmethod
+    def _deterministic_next_action(state: RunState, outcome: Outcome) -> str:
+        if outcome is Outcome.APPROVE_FOR_POSTING:
+            # The proposed run is named when one exists. FIN-POL-006 §2 schedules an approved
+            # invoice for the next standard run before its due date, and a next action that
+            # says "the next standard run" without saying which one leaves the reader to
+            # recompute a date the engine has already computed.
+            if state.proposed_payment_run is not None:
+                schedule = (
+                    f"then post and schedule for the standard payment run on "
+                    f"{state.proposed_payment_run.isoformat()}, ahead of the due date "
+                    f"{state.payable_on.isoformat() if state.payable_on else 'not computed'} "
+                    "(FIN-POL-006 §2). Proposal only: an agent may not release a payment file."
+                )
+            else:
+                schedule = (
+                    "then post. No standard payment run remains before the due date, so "
+                    "scheduling is for Accounts Payable to resolve; internal delay alone is "
+                    "not grounds for a manual payment (FIN-POL-006 §3)."
+                )
+            return (
+                "Route to an approver holding at least the required delegated authority, "
+                + schedule
+            )
+        if outcome is Outcome.ESCALATE_CONTROL_REVIEW:
+            return (
+                "Refer to Financial Crime and Controls without notifying the supplier of "
+                "the suspicion (FIN-POL-007 §3)."
+            )
+        if outcome in {Outcome.REJECT_DUPLICATE, Outcome.REJECT_INVALID}:
+            return (
+                "Route the rejection to an approver, then notify the requester with the "
+                "cited records."
+            )
+        return (
+            "Route each exception to the owner named in its record and resume from the "
+            "failed control when new evidence arrives."
+        )
 
     @staticmethod
     def _without_superseded_unknowns(state: RunState, candidates: list[Unknown]) -> list[Unknown]:
@@ -791,6 +1036,10 @@ class Orchestrator:
             vendor=state.vendor,
             texts=case_texts,
             history=state.invoice_history,
+            # Computed by the payment-terms rule during reconciliation. The weekend
+            # indicator is about the settlement date, not about when this run happened to
+            # execute.
+            settlement_on_non_business_day=state.settlement_on_non_business_day,
             as_of=as_of,
         )
         state.add_indicators(indicators)
@@ -877,11 +1126,17 @@ class Orchestrator:
         match = three_way_match(invoice, state.purchase_order, as_of=as_of)
         duplicates = duplicate_check(invoice, state.invoice_history, as_of=as_of)
         vendor = vendor_status_check(
-            state.vendor, invoice, as_of=as_of, requested_by=state.request.requested_by
+            state.vendor,
+            invoice,
+            as_of=as_of,
+            requested_by=state.request.requested_by,
+            history=state.invoice_history,
         )
         authority = required_authority(
             Money(amount=invoice.gross_amount, currency=invoice.currency),
-            higher_risk_reasons=vendor.higher_risk_reasons,
+            # The reasons recorded during reconciliation, which include conditions found
+            # outside the vendor record.
+            higher_risk_reasons=state.higher_risk_reasons or vendor.higher_risk_reasons,
         )
 
         decision = decide_outcome(
@@ -891,8 +1146,13 @@ class Orchestrator:
             authority=authority,
             indicators=state.fraud_indicators,
             invalid_reasons=state.invalid_reasons,
+            # Everything the run recorded, including the controls that are not among the
+            # three named results. Without this a blocking exception from the
+            # payment-instruction check never reached the outcome.
+            additional_exceptions=state.exceptions,
         )
 
+        nonce = new_boundary_nonce()
         computed_findings = render_computed_findings(
             match=match,
             calculations_summary=[
@@ -911,9 +1171,9 @@ class Orchestrator:
                 for indicator in state.fraud_indicators
             ],
             computed_outcome=decision.outcome.value,
+            nonce=nonce,
         )
 
-        nonce = new_boundary_nonce()
         prompt = build_recommendation_prompt(
             request=state.request,
             computed_findings=computed_findings,
@@ -979,9 +1239,10 @@ class Orchestrator:
                 )
 
         requires_approval = final_outcome.is_consequential
+        summary, next_action = self._screen_narrative(state, emitter, narrative, final_outcome)
         recommendation = Recommendation(
             outcome=final_outcome,
-            summary=narrative.summary,
+            summary=summary,
             cited_evidence=self._recommendation_citations(state),
             calculations=list(state.calculations),
             assumptions=[*narrative.assumptions, *state.assumptions],
@@ -992,7 +1253,7 @@ class Orchestrator:
                 limits=list(narrative.confidence.limits),
             ),
             exceptions=list(state.exceptions),
-            next_action=narrative.next_action,
+            next_action=next_action,
             requires_approval=requires_approval,
             requires_second_approval=decision.requires_second_approval,
             second_approval_reason=decision.second_approval_reason,
@@ -1049,6 +1310,48 @@ class Orchestrator:
             raise ToolPermissionDenied(SUBMIT_FINANCE_DECISION.name, authorisation.reason)
 
         invoice = state.request.to_invoice()
+
+        # FIN-POL-007 §5 requires a resumed case to "revalidate any time-sensitive vendor or
+        # delegation information". The delegation is revalidated when the signature is taken;
+        # the vendor was not, and a controls review pointed out that a vendor which became
+        # BLOCKED or acquired a risk flag between recommendation and approval would be posted
+        # on stale facts. The monetary authority still comes from the stored approval, which
+        # is correct: an approver's limit applies to what they were shown. Vendor *status* is
+        # a fact about the world, and it is re-read here.
+        revalidation = vendor_status_check(
+            state.vendor,
+            invoice,
+            as_of=self._clock(),
+            requested_by=state.request.requested_by,
+            history=state.invoice_history,
+        )
+        newly_blocking = [
+            exception
+            for exception in revalidation.exceptions
+            if exception.blocking and exception.category is not ExceptionCategory.BANK_CHANGE
+        ]
+        if newly_blocking:
+            state.add_exceptions(newly_blocking)
+            emitter.emit(
+                EventType.EXCEPTION_RAISED,
+                payload={
+                    "rule_group": "vendor_revalidation_at_decision",
+                    "categories": sorted({e.category.value for e in newly_blocking}),
+                    "note": (
+                        "vendor facts changed between recommendation and approval; "
+                        "FIN-POL-007 §5 requires revalidation before resuming"
+                    ),
+                },
+                phase=RunPhase.EXECUTE_DECISION,
+                outcome="BLOCKED",
+            )
+            raise ToolPermissionDenied(
+                SUBMIT_FINANCE_DECISION.name,
+                "vendor revalidation at decision time found a blocking condition that was "
+                "not present at assessment: "
+                + "; ".join(exception.observed for exception in newly_blocking),
+            )
+
         arguments = SubmitFinanceDecisionInput(
             run_id=state.run_id,
             case_id=state.case_id,
@@ -1057,6 +1360,7 @@ class Orchestrator:
             amount=invoice.gross_amount,
             currency=invoice.currency,
             vendor_id=invoice.vendor_id,
+            invoice_reference=invoice.invoice_reference,
         )
         handler = submit_finance_decision(self._repository)
 
@@ -1124,13 +1428,18 @@ class Orchestrator:
             presented_amount=invoice.gross_amount,
             presented_currency=invoice.currency,
             presented_vendor=invoice.vendor_name,
+            presented_vendor_id=invoice.vendor_id,
             presented_exception_categories=[
                 exception.category for exception in recommendation.exceptions
             ],
             presented_citations=recommendation.cited_evidence[:12],
             required_role_minimum=state.required_role_minimum,
             higher_risk_reasons=list(state.higher_risk_reasons),
-            requires_second_approval=recommendation.requires_second_approval,
+            # FIN-POL-003 §3: two approvals for a higher-risk transaction, one of them from
+            # Financial Control. Recorded as a requirement the gate enforces, not as a flag
+            # nobody reads.
+            required_signature_count=2 if recommendation.requires_second_approval else 1,
+            requires_financial_control=recommendation.requires_second_approval,
             created_at=self._clock(),
         )
         self._repository.create_approval(request)
@@ -1155,7 +1464,17 @@ class Orchestrator:
     def _resolve(
         self, run_id: str, decision: ApprovalDecision, status: ApprovalStatus
     ) -> tuple[RunState, bool]:
-        """Apply a human decision to a run, idempotently."""
+        """Apply a human decision to a run, idempotently.
+
+        An approval is a set of signatures, not a single decision. FIN-POL-003 §3 requires two
+        approvals for a higher-risk transaction, one of them from Financial Control, and an
+        earlier version of this method advanced to execution on the first signature whatever
+        the requirement said. The requirement was computed, stored, shown to the approver, and
+        read by nobody: two independent reviews posted a bank-change case on one approval.
+
+        Returns the run and whether the delivery was a replay. A replay changes nothing and
+        costs nothing: it is detected before authority is validated or any tool is called.
+        """
         state = self._repository.require_run(run_id)
         emitter = self._emitter(state)
 
@@ -1170,45 +1489,36 @@ class Orchestrator:
         if approval is None:
             raise ApprovalStateConflict(f"approval {state.approval_id} is missing")
 
-        # A replay is detected before anything else happens. Checked here rather than relying
-        # on the repository's idempotency alone, because everything below it costs something:
-        # re-validating authority would read the authority register again, spending tool
-        # budget on a question that was already answered, and re-deriving the verdict invites
-        # a different answer if the register changed in between. A duplicate delivery must be
+        # A settled approval short-circuits before anything else happens. Checked here rather
+        # than relying on the store's idempotency alone, because everything below costs
+        # something: re-validating authority reads the authority register again, spending tool
+        # budget on a question already answered, and re-deriving the verdict invites a
+        # different answer if the register changed in between. A duplicate delivery must be
         # inert, not merely harmless.
-        if approval.status is not ApprovalStatus.PENDING:
-            if approval.status is status:
-                emitter.emit(
-                    EventType.APPROVAL_REPLAYED,
-                    payload={
-                        "approval_id": approval.approval_id,
-                        "status": approval.status.value,
-                        "originally_decided_by": approval.decided_by,
-                        "originally_decided_at": (
-                            approval.decided_at.isoformat() if approval.decided_at else None
-                        ),
-                        "note": "duplicate delivery; no validation, tool call or state change",
-                    },
-                    phase=state.phase,
-                    outcome="REPLAYED",
-                )
-                return self._repository.require_run(run_id), True
-            raise ApprovalStateConflict(
-                f"approval {approval.approval_id} is already {approval.status.value} and "
-                f"cannot be changed to {status.value}"
-            )
+        settled = self._short_circuit_settled(state, emitter, approval, decision, status)
+        if settled is not None:
+            return settled
 
-        # Authority is validated before the decision is accepted, not after. An approver
-        # without sufficient authority has not approved anything, so recording their decision
-        # and checking later would leave an approval on file that was never valid.
+        # Authority is validated before a signature is accepted, not after. An approver
+        # without sufficient authority has not approved anything, so recording the signature
+        # and checking afterwards would leave one on file that was never valid.
         delegation = self._load_delegation(state, emitter, decision)
         # Rebuilt from what was stored on the approval, not recomputed from current vendor
         # data. The conditions were evaluated when the case was assessed, and vendor data can
-        # change between assessment and approval; re-deriving them here would mean an
-        # approver's authority was judged against facts they were never shown.
+        # change between assessment and approval; re-deriving them here would judge an
+        # approver's authority against facts they were never shown. Vendor *status* is
+        # revalidated separately, at decision time, per FIN-POL-007 §5.
         authority = required_authority(
             Money(amount=approval.presented_amount, currency=approval.presented_currency),
             higher_risk_reasons=approval.higher_risk_reasons,
+        )
+        # Whether a signature that already satisfies the monetary limit is on file. A
+        # Financial Control signature is valid as the FIN-POL-003 §3 co-approval only once
+        # the limit has been met by someone who holds one.
+        primary_signed = any(
+            signature.applicable_limit is not None
+            and signature.applicable_limit >= approval.presented_amount
+            for signature in approval.signatures
         )
         validation = validate_approval(
             authority,
@@ -1216,36 +1526,71 @@ class Orchestrator:
             approver_role=decision.approver_role,
             delegation=delegation,
             requested_by=state.request.requested_by,
+            case_cost_centre=state.request.cost_centre,
+            as_co_approver=primary_signed,
+            as_of=self._clock(),
+        )
+        segregation = check_segregation_at_approval(
+            vendor=state.vendor,
+            purchase_order=state.purchase_order,
+            invoice=state.request.to_invoice(),
+            requested_by=state.request.requested_by,
+            approver_id=decision.approver_id,
+            existing_signatories=[signature.approver_id for signature in approval.signatures],
             as_of=self._clock(),
         )
 
-        if status is ApprovalStatus.APPROVED and not validation.sufficient:
-            state.add_exceptions(list(validation.exceptions))
+        if status is ApprovalStatus.APPROVED and not (
+            validation.sufficient and segregation.satisfied
+        ):
+            reasons = [
+                *validation.reasons,
+                *(exception.observed for exception in segregation.exceptions),
+            ]
+            state.add_exceptions([*validation.exceptions, *segregation.exceptions])
             state.add_findings(list(validation.findings))
             emitter.emit(
                 EventType.APPROVAL_RESOLVED,
                 payload={
                     "approval_id": approval.approval_id,
-                    "decision": "REFUSED_INSUFFICIENT_AUTHORITY",
+                    "decision": "REFUSED",
+                    "approver_id": decision.approver_id,
                     "approver_role": decision.approver_role,
-                    "reasons": validation.reasons,
+                    "reasons": reasons,
                 },
                 phase=state.phase,
                 outcome="DENIED",
             )
             state = self._repository.save_run(state)
             raise ApprovalStateConflict(
-                "the approver does not hold sufficient authority: " + "; ".join(validation.reasons)
+                "the approver may not approve this transaction: " + "; ".join(reasons)
             )
 
-        resolved, replayed = self._repository.resolve_approval(
-            approval.approval_id,
-            status=status,
-            decided_by=decision.approver_id,
-            decided_by_role=decision.approver_role,
-            comment=decision.comment,
-            decided_at=self._clock(),
-        )
+        if status is ApprovalStatus.REJECTED:
+            resolved, replayed = self._repository.reject_approval(
+                approval.approval_id,
+                decided_by=decision.approver_id,
+                decided_by_role=decision.approver_role,
+                comment=decision.comment,
+                decided_at=self._clock(),
+            )
+        else:
+            resolved, replayed = self._repository.add_approval_signature(
+                approval.approval_id,
+                ApprovalSignature(
+                    approver_id=decision.approver_id,
+                    approver_role=decision.approver_role,
+                    effective_role=(
+                        validation.effective_role.value if validation.effective_role else ""
+                    ),
+                    applicable_limit=validation.applicable_limit,
+                    authority_register_version=validation.authority_register_version,
+                    delegation_applied=validation.delegation_applied,
+                    is_financial_control=validation.is_financial_control,
+                    signed_at=self._clock(),
+                    comment=decision.comment,
+                ),
+            )
 
         if replayed:
             emitter.emit(
@@ -1253,16 +1598,12 @@ class Orchestrator:
                 payload={
                     "approval_id": resolved.approval_id,
                     "status": resolved.status.value,
-                    "originally_decided_by": resolved.decided_by,
-                    "originally_decided_at": (
-                        resolved.decided_at.isoformat() if resolved.decided_at else None
-                    ),
+                    "approver_id": decision.approver_id,
+                    "signatures_collected": resolved.signatures_collected,
                 },
                 phase=state.phase,
                 outcome="REPLAYED",
             )
-            # A replay must not advance the run. If the first delivery already executed the
-            # decision, the run is terminal and its stored state is the answer.
             current = self._repository.require_run(run_id)
             if current.phase.is_terminal:
                 return current, True
@@ -1273,8 +1614,8 @@ class Orchestrator:
                 payload={
                     "approval_id": resolved.approval_id,
                     "decision": status.value,
-                    "approver_id": resolved.decided_by,
-                    "approver_role": resolved.decided_by_role,
+                    "approver_id": decision.approver_id,
+                    "approver_role": decision.approver_role,
                     "effective_role": (
                         validation.effective_role.value if validation.effective_role else None
                     ),
@@ -1283,11 +1624,38 @@ class Orchestrator:
                     ),
                     "authority_register_version": validation.authority_register_version,
                     "delegation_applied": validation.delegation_applied,
+                    "is_financial_control": validation.is_financial_control,
+                    "signatures_collected": resolved.signatures_collected,
+                    "signatures_required": resolved.required_signature_count,
+                    "requirement_met": resolved.signature_requirement_met,
                 },
                 phase=state.phase,
                 outcome=status.value,
             )
-            state.add_findings(list(validation.findings))
+            state.add_findings([*validation.findings, *segregation.findings])
+
+        # The gate stays closed until every required signature is collected. This is the
+        # branch that was missing: an earlier version advanced to EXECUTE_DECISION on the
+        # first signature whatever the requirement said.
+        if status is ApprovalStatus.APPROVED and not resolved.signature_requirement_met:
+            state = self._repository.save_run(state)
+            emitter.emit(
+                EventType.APPROVAL_REQUESTED,
+                payload={
+                    "approval_id": resolved.approval_id,
+                    "signatures_collected": resolved.signatures_collected,
+                    "signatures_required": resolved.required_signature_count,
+                    "outstanding": resolved.outstanding_requirement_detail(),
+                },
+                phase=state.phase,
+                outcome="AWAITING_FURTHER_SIGNATURE",
+            )
+            # ``replayed``, not False. An earlier version hardcoded False here and a
+            # regression test caught it: a duplicate delivery from an approver who had
+            # already signed was reported as a fresh signature, even though the store had
+            # correctly ignored it. A caller retrying a delivery would have read that as
+            # progress towards the second signature.
+            return state, replayed
 
         if status is ApprovalStatus.REJECTED:
             state.actions_taken.append(
@@ -1314,6 +1682,69 @@ class Orchestrator:
         state.status = RunStatus.RUNNING
         state = self._repository.save_run(state)
         return self._drive(state, emitter), replayed
+
+    def _short_circuit_settled(
+        self,
+        state: RunState,
+        emitter: EventEmitter,
+        approval: ApprovalRequest,
+        decision: ApprovalDecision,
+        status: ApprovalStatus,
+    ) -> tuple[RunState, bool] | None:
+        """Handle a delivery against an approval that is already settled.
+
+        Returns the answer when the delivery is a replay, and raises when it contradicts a
+        settled decision. Returns ``None`` when the approval is still open and the caller
+        should proceed.
+
+        One approver approving and another rejecting the same request is a real
+        disagreement, so it raises rather than being resolved by arrival order.
+        """
+        if approval.status is ApprovalStatus.REJECTED:
+            if status is ApprovalStatus.REJECTED:
+                emitter.emit(
+                    EventType.APPROVAL_REPLAYED,
+                    payload={
+                        "approval_id": approval.approval_id,
+                        "status": approval.status.value,
+                        "originally_decided_by": approval.decided_by,
+                        "note": "duplicate rejection; no validation or state change",
+                    },
+                    phase=state.phase,
+                    outcome="REPLAYED",
+                )
+                return self._repository.require_run(state.run_id), True
+            raise ApprovalStateConflict(
+                f"approval {approval.approval_id} is already REJECTED and cannot be changed "
+                "to APPROVED"
+            )
+
+        if approval.status is ApprovalStatus.APPROVED:
+            if status is ApprovalStatus.REJECTED:
+                raise ApprovalStateConflict(
+                    f"approval {approval.approval_id} is already APPROVED and cannot be "
+                    "changed to REJECTED"
+                )
+            already = {signature.approver_id for signature in approval.signatures}
+            if decision.approver_id in already:
+                emitter.emit(
+                    EventType.APPROVAL_REPLAYED,
+                    payload={
+                        "approval_id": approval.approval_id,
+                        "status": approval.status.value,
+                        "approver_id": decision.approver_id,
+                        "note": "this approver has already signed; no state change",
+                    },
+                    phase=state.phase,
+                    outcome="REPLAYED",
+                )
+                return self._repository.require_run(state.run_id), True
+            raise ApprovalStateConflict(
+                f"approval {approval.approval_id} is already APPROVED; its signature "
+                "requirement was met and the decision has been settled"
+            )
+
+        return None
 
     def _load_delegation(
         self, state: RunState, emitter: EventEmitter, decision: ApprovalDecision
