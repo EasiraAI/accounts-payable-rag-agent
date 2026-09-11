@@ -40,7 +40,7 @@ def _reject_float(value: Any) -> Any:
     would surface as a 500 rather than a 422.
     """
     if isinstance(value, float):
-        raise ValueError(  # noqa: TRY004 - see docstring: pydantic only traps ValueError
+        raise ValueError(  # noqa: TRY004 - pydantic only traps ValueError
             "monetary amounts must not be floats; pass a Decimal, an int, or a string "
             "such as '18400.00' so that decimal arithmetic is exact"
         )

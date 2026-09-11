@@ -320,3 +320,43 @@ class InvoiceHistoryMatch(BaseModel):
         """Paid or posted records are the ones that make a new invoice a duplicate
         (FIN-POL-005 §2). A prior hold or rejection is a signal, not proof."""
         return self.status in {InvoiceHistoryStatus.PAID, InvoiceHistoryStatus.POSTED}
+
+
+class DelegationRecord(BaseModel):
+    """An entry in the authority register (FIN-POL-003 §4).
+
+    Every field the policy names as mandatory is required here: delegate, delegator, scope,
+    start and end. An email approving a delegation is explicitly insufficient, so there is
+    no field in which to record one, and ``is_valid_at`` treats an expired delegation as
+    invalid regardless of what was approved under it earlier.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    delegation_id: NonEmptyStr
+    register_version: NonEmptyStr
+    delegate_id: NonEmptyStr
+    delegate_role: str
+    delegator_id: NonEmptyStr
+    delegator_role: str
+    scope: NonEmptyStr
+    starts_on: date
+    ends_on: date
+    revoked: bool = False
+
+    def is_valid_at(self, moment: date) -> bool:
+        if self.revoked:
+            return False
+        return self.starts_on <= moment <= self.ends_on
+
+    def invalid_reason_at(self, moment: date) -> str | None:
+        """Why the delegation does not apply, phrased for an exception record."""
+        if self.revoked:
+            return f"delegation {self.delegation_id} was revoked"
+        if moment < self.starts_on:
+            return (
+                f"delegation {self.delegation_id} does not start until {self.starts_on.isoformat()}"
+            )
+        if moment > self.ends_on:
+            return f"delegation {self.delegation_id} expired on {self.ends_on.isoformat()}"
+        return None
