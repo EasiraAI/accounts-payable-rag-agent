@@ -63,6 +63,10 @@ class Application:
             "corpus_hash": self.index.corpus_hash[:16],
             "superseded_score_factor": self.settings.superseded_score_factor,
             "database": str(self.settings.db_path),
+            # The shape of the store that is actually open, not the constant this build
+            # expects. They agree after a successful open, and an operator asserting on the
+            # value wants the one the database reports.
+            "schema_version": self.repository.schema_version,
             "index_dir": str(self.settings.index_dir),
             "max_steps": self.settings.max_steps,
             "max_tool_calls": self.settings.max_tool_calls,

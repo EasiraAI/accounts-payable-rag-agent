@@ -72,8 +72,11 @@ is a better demonstration than a graph definition plus a dependency they must tr
 
 ## Consequences
 
-- `src/ap_agent/orchestration/` holds `phases.py` (enum), `state.py` (model), `machine.py`
-  (driver and transitions), `gates.py` (budget, approval).
+- `src/ap_agent/orchestration/` holds `phases.py` (the phase plan and its preconditions),
+  `machine.py` (driver and transitions) and `gates.py` (budget and approval gate). The
+  run-state model lives in `domain/run_state.py` rather than in this package: it is a typed
+  contract that the API, the CLI and the persistence layer all read, so keeping it beside the
+  driver would have made three consumers depend on the orchestrator to describe a run.
 - Phases: `INTAKE -> RETRIEVE_POLICY -> GATHER_EVIDENCE -> RECONCILE -> ASSESS_RISK ->
   RECOMMEND -> AWAITING_APPROVAL -> EXECUTE_DECISION -> COMPLETED`, with `HELD` and
   `FAILED` as terminal alternatives from any phase.

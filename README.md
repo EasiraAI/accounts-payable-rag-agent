@@ -14,7 +14,7 @@ receipt is stamped `simulated: true`.
 
 | | |
 |---|---|
-| Tests | 424 passing, plus one live-model test excluded by default |
+| Tests | 599 passing, plus one live-model test excluded by default |
 | Fixture cases | 5 of 5 passing (FIN-001 to FIN-005) |
 | Retrieval quality | Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 golden queries |
 | Retrieval safety | 0 distractor leaks, 0 stale-policy leaks |
@@ -85,8 +85,9 @@ Two adapters implement one protocol, `LLMClient`, selected by `AP_LLM_PROVIDER`.
 a mock of convenience: it is what lets every safety property be asserted in continuous
 integration, because those properties must hold for *any* model output including hostile
 output. It also has fault modes (`schema_violation`, `always_invalid`, `unavailable`,
-`inject_compliance`) that exercise the repair path, the explicit-failure path, and the case
-where the model has obeyed an injected instruction.
+`inject_compliance`, `hostile_narrative`) that exercise the repair path, the explicit-failure
+path, the case where the model has obeyed an injected instruction, and the case where its
+prose carries an instruction the structured fields do not.
 
 **`anthropic`** calls Claude through the official SDK. Structured output is obtained by
 declaring a single tool whose input schema is the pydantic model's JSON schema and forcing
@@ -128,7 +129,10 @@ ap-agent run fixtures/cases/FIN-001.json
 # Inspect a run, with its full audit log
 ap-agent get <run_id> --events
 
-# Resolve a pending approval. Safe to repeat: a second delivery is a no-op.
+# Resolve a pending approval. A repeat delivery from the same approver is a no-op.
+# A higher-risk case needs two distinct signatures, one from Financial Control, so a
+# second call from a different approver is a real signature and not a replay (section 10).
+# --delegation-id names an authority-register entry when the approver acts under one.
 ap-agent approve <run_id> --approval-id <apr_...> \
     --approver-id U-3081 --approver-role DEPARTMENT_DIRECTOR
 
@@ -185,9 +189,9 @@ as a pipeline step without parsing its output.
 
 | Tier | Location | Count | Model calls | What it protects |
 |---|---|---|---|---|
-| Unit | `tests/unit` | 183 | none | Rule thresholds at their boundaries, redaction, property-based invariants |
-| Contract | `tests/contract` | 137 | none | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
-| Evaluation | `tests/eval` | 104 | none (deterministic adapter) | Retrieval grounding, the five cases, safety properties |
+| Unit | `tests/unit` | 291 | none | Rule thresholds at their boundaries, redaction, property-based invariants |
+| Contract | `tests/contract` | 161 | none | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
+| Evaluation | `tests/eval` | 147 | none (deterministic adapter) | Retrieval grounding, the five cases, safety properties |
 | Live model | `tests/eval`, marked `live_model` | 1 | yes | The same cases through a real model |
 
 ## 8. Live-model tier (requires external access)
@@ -242,6 +246,34 @@ gap becomes an explicit unknown, the case is held, and nothing is approved.
 **Duplicate approval (FIN-005).** The same callback delivered twice produces one decision and
 two identical responses, the second flagged `replayed`.
 
+**Two-signature approval.** A higher-risk transaction under FIN-POL-003 §3 needs two
+distinct signatures, one of them from Financial Control. The first valid signature is recorded
+and the run stays `AWAITING_APPROVAL`; the pending approval then states what is outstanding,
+for example `1 further distinct signature(s) required (1 of 2 collected); one signature must
+come from Financial Control (FIN-POL-003 §3)`. Financial Control may co-sign without holding a
+monetary limit, because §2 gives the role none and §3 makes it the required second approver. A
+repeat delivery from someone who has already signed is a replay: no validation, no tool call,
+no second signature. See
+[docs/adr/0007-two-signature-approvals.md](docs/adr/0007-two-signature-approvals.md).
+
+**Self-contradictory invoice (`REJECT_INVALID`).** An invoice whose lines do not support its
+own stated total, or one dated in the future, cannot be repaired by retrieval and is rejected
+rather than held. The line this draws is between *incomplete*, which is a hold under
+FIN-POL-001 §5, and *wrong*. Rejecting is consequential, so it stops at the approval gate like
+any other outcome.
+
+**Tax question (`TAX_QUERY`).** FIN-POL-002 §2 requires tax to be assessed separately and
+forbids it being hidden inside a price variance. A submission that states a gross and no
+components has its unattributed difference raised as a tax question rather than reported to
+the requester as a pricing dispute. The query never blocks: the rate behind it is
+configuration, not policy.
+
+**Payment schedule.** The agreed terms come from the purchase order, and an invoice's printed
+terms do not override them (FIN-POL-006 §1). The due date is computed, moved off a
+non-business day to the *preceding* business day under §2, and a standard Tuesday or Thursday
+run is proposed. A proposal only: §4 forbids an agent releasing a payment file, and no tool
+here can.
+
 **Restart and resume.** A run stopped at the approval gate resumes in a different process
 from its persisted state. Exercised by
 `tests/eval/test_safety.py::TestRestartAndResume`.
@@ -259,10 +291,12 @@ nothing.
 2. **Attachments arrive as inline text.** Binary parsing and optical character recognition
    are out of scope. What the brief exercises is the agent's behaviour towards attachment
    *content*.
-3. **One approver demonstrates the gate.** FIN-POL-003 §3 requires two approvals for
-   higher-risk transactions, and the engine computes and records that requirement, but a
-   single callback is enough to demonstrate the gate. Enforcing the second approver is listed
-   in [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
+3. **A configured tax rate, because the policy states none.** FIN-POL-002 §2 requires tax
+   to be assessed separately and defines no correctness test; the corpus names a jurisdiction
+   (AU) and no rate. `EXPECTED_TAX_RATE_PERCENT` in `domain/rules/tax.py` is therefore an
+   assumption about the environment, it is cited as one in every finding that uses it, and
+   nothing derived from it blocks a case. A deployment elsewhere changes that constant and
+   nothing else.
 4. **Policy thresholds are constants in code, not read from retrieved text.** Retrieval
    supplies citations; the numbers come from `domain/rules/`. A retrieval system can demote
    the superseded authority matrix but cannot guarantee a model ignores it.
@@ -272,7 +306,11 @@ nothing.
 6. **Amounts are in the invoice currency and policy thresholds are in AUD.** Where they
    differ, the threshold is applied numerically and the substitution recorded as an
    assumption, because converting a threshold needs a cited rate under FIN-POL-009 §2 and no
-   rate service is configured.
+   rate service is configured. This applies to the tolerance bands in
+   `domain/rules/matching.py` and, more consequentially, to the approval limits in
+   `domain/rules/authority.py`: that is the control gating a posting, so a foreign-currency
+   invoice is approved against a numerically substituted limit, and the substitution is on
+   the approval record.
 7. **The corpus is synthetic and in-repo.** It contains no real vendor, person or account.
 
 ## 12. Known limitations
@@ -305,7 +343,23 @@ goal here.
 running. Acceptable because every tool with a timeout is a read; the write tool is made safe
 by its idempotency key instead.
 
-**Second approver not enforced.** See assumption 3.
+**Schema versioning is forward-only.** The store records its shape in SQLite's
+`user_version`, migrates an older store forward on open, and **refuses to open a store written
+by a newer build**, with an error naming both versions. That is deliberate: running older code
+against a forward-migrated store is how a constraint gets dropped from the enforcement path
+while the application still believes it is there. There is no down migration, so a rollback
+means restoring a backup taken before the upgrade. See
+[docs/adr/0006-schema-versioning-and-migration.md](docs/adr/0006-schema-versioning-and-migration.md).
+
+**Credit notes are recognised, not processed.** FIN-POL-008 requires tax and accounting
+treatment to be validated before a credit is applied, and the processing request cannot
+express a credit because it requires a positive amount. A document that identifies itself as a
+credit note is held for Financial Control rather than assessed against controls written for an
+obligation to pay.
+
+**An approved non-PO justification cannot be represented.** FIN-POL-001 §2 accepts a purchase
+order *or* an approved non-PO justification, and the request schema has no field for the
+second. The minimum-evidence finding says so rather than asserting that none exists.
 
 **No authentication.** The HTTP service binds to localhost and has no authentication, so the
 approval endpoints are open to anyone who can reach the host. It is not deployable as-is.
@@ -319,7 +373,10 @@ approval endpoints are open to anyone who can reach the host. It is not deployab
 | An outcome cannot be loosened by the model | The rule engine computes it; a suggestion applies only if strictly more conservative | `test_a_model_that_obeys_an_injected_instruction_is_overruled` |
 | No tool argument widens permission | No schema contains `force`, `override`, `verified` or a caller-supplied idempotency key | `test_no_tool_input_schema_offers_an_override` |
 | A fabricated citation cannot be presented | The model returns chunk identifiers; they are resolved against what was retrieved | `TestCitationGrounding` |
-| One decision per approved run, ever | `decisions.idempotency_key` primary key plus `run_id UNIQUE` | `test_concurrent_identical_calls_produce_one_decision` |
+| One decision per approved run, ever | `decisions.idempotency_key` primary key plus `run_id UNIQUE`; the key is derived in code from the run, approval, outcome, amount, currency and vendor | `test_concurrent_identical_calls_produce_one_decision` |
+| One decision per *invoice*, across runs | `decisions.invoice_fingerprint` with a partial unique index, so three identical invoices submitted as three runs cannot post three times | `TestOneDecisionPerInvoiceAcrossRuns` |
+| Two approvals means two people | `approval_signatures PRIMARY KEY (approval_id, approver_id)`; the gate opens only when the count, the distinctness and the Financial Control requirement are met | `TestSecondApproverIsEnforced` |
+| A stale store cannot be opened silently | `PRAGMA user_version` with ordered forward migrations; a newer store is refused | `TestSchemaVersioning`, `TestMigrationCrashWindows` |
 | Execution is bounded | Finite step and tool budgets; retries spend the tool budget | `TestBoundedExecution` |
 | Model output is never trusted unvalidated | One structured method, one repair attempt, then explicit failure. No free-text path | `TestModelFailureHandling` |
 | No unmasked account or credential is logged | One redaction path for every event and log line | `TestSafeLogging` |
@@ -346,6 +403,7 @@ fixtures/cases           the five required cases, with their assertions
 fixtures/mock_data       simulated systems of record and fault profiles
 docs/                    design note, ADRs, manifest, diagrams, samples, references
 infra/                   Dockerfile and compose file
+scripts/                 setup, sample rendering, credential sweep
 ```
 
 ## 15. Documentation
@@ -353,7 +411,7 @@ infra/                   Dockerfile and compose file
 | Document | Contents |
 |---|---|
 | [docs/DESIGN_NOTE.md](docs/DESIGN_NOTE.md) | Orchestration, RAG design, trust boundaries, contracts, persistence, failure handling, production changes, enterprise scale |
-| [docs/adr/](docs/adr/) | Five decision records, each with the options rejected and why |
+| [docs/adr/](docs/adr/) | Seven decision records, each with the options rejected and why |
 | [docs/MANIFEST.md](docs/MANIFEST.md) | Component and configuration manifest |
 | [docs/diagrams/architecture.md](docs/diagrams/architecture.md) | Architecture and run-lifecycle diagrams |
 | [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) | What to improve next, in priority order |
@@ -388,5 +446,13 @@ account-shaped test inputs are assembled at runtime from fragments rather than w
 literals, so a secret scanner has nothing to flag and the repository contains no
 credential-shaped string.
 
-A pre-write hook in `.claude/hooks/secret_guard.py` blocks any file containing a
-credential-shaped or unmasked-account-shaped string.
+The claim is checked rather than asserted. `scripts/secret_sweep.py` scans the committed
+tree for six credential and account shapes and exits non-zero on any finding, so it works as a
+pipeline step:
+
+```bash
+uv run python scripts/secret_sweep.py
+```
+
+It allows last-four masking (`****8842`), which is the form FIN-POL-004 §3 and FIN-POL-010 §2
+require and the form the vendor tool returns.

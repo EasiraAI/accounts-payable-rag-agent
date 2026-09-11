@@ -5,7 +5,7 @@ version of the same information is served by `GET /manifest` and printed by
 `ap-agent manifest`; that one is generated from the running configuration, so it cannot
 describe a system other than the one answering the request.
 
-Verified against commit state: 15 corpus documents, 58 chunks, 424 tests passing, 5 of 5
+Verified against commit state: 15 corpus documents, 58 chunks, 599 tests passing, 5 of 5
 fixture cases passing.
 
 ---
@@ -75,11 +75,17 @@ Provider and model names appear in `config/settings.py` and nowhere else in the 
 | Item | Value | Configured by | Implemented in |
 |---|---|---|---|
 | Engine | SQLite, WAL journal, `synchronous=FULL` | `AP_DB_PATH` | `persistence/schema.sql` |
-| Tables | `runs`, `events`, `approvals`, `decisions` | n/a | `persistence/schema.sql` |
+| Tables | `runs`, `events`, `approvals`, `approval_signatures`, `decisions` | n/a | `persistence/schema.sql` |
 | Run concurrency | optimistic, `runs.version` asserted on write | n/a | `persistence/repository.py` |
 | Decision idempotency | `decisions.idempotency_key` PRIMARY KEY | n/a | `persistence/schema.sql` |
 | One decision per run | `decisions.run_id` UNIQUE, for the run's lifetime | n/a | `persistence/schema.sql` |
-| Key derivation | SHA-256 of run, approval and outcome, computed in code | n/a | `persistence/repository.py` |
+| One decision per invoice | `decisions.invoice_fingerprint`, partial UNIQUE index, across runs | n/a | `persistence/schema.sql` |
+| One signature per approver | `approval_signatures` PRIMARY KEY `(approval_id, approver_id)` | n/a | `persistence/schema.sql` |
+| Key derivation | SHA-256 of run, approval, outcome, amount, currency and vendor, computed in code | n/a | `persistence/repository.py` |
+| Invoice fingerprint | SHA-256 of vendor, normalised number, currency and gross amount | n/a | `persistence/repository.py` |
+| Schema version | `SCHEMA_VERSION = 2`, recorded in `PRAGMA user_version` | n/a | `persistence/repository.py` |
+| Migration | ordered forward steps, each with its version stamp in one transaction | n/a | `persistence/repository.py` |
+| A newer store | refused to open, with an error naming both versions | n/a | `persistence/repository.py` |
 | Caller-supplied keys | not accepted; there is no such field | n/a | `tools/contracts.py` |
 | Write transactions | `BEGIN IMMEDIATE`, plus a process-local lock per instance | n/a | `persistence/repository.py` |
 | Event log | append-only, `UNIQUE(run_id, sequence)` | n/a | `persistence/schema.sql` |
@@ -157,6 +163,12 @@ well-behaved caller into retrying a normal event.
 | One redaction path for every event and log line | `observability/redact.py` | `TestSafeLogging`, `tests/unit/test_redact.py` |
 | Execution is bounded | `orchestration/gates.py`, `tools/base.py` | `TestBoundedExecution` |
 | Model output is never unvalidated | `llm/base.py` and the adapters | `TestModelFailureHandling` |
+| Two approvals means two people | `persistence/schema.sql` (`approval_signatures` primary key), `domain/results.py` (`signature_requirement_met`), `orchestration/machine.py` | `TestSecondApproverIsEnforced` |
+| Financial Control may co-sign without a limit | `domain/rules/authority.py` (`as_co_approver`) | `test_two_signatures_with_financial_control_post_once` |
+| A duplicate delivery costs nothing | `orchestration/machine.py` (`_short_circuit_replay`) | `TestRepeatSignatureSpendsNothing` |
+| One decision per invoice, across runs | `persistence/schema.sql` | `TestOneDecisionPerInvoiceAcrossRuns` |
+| A store from a newer build is refused | `persistence/repository.py` | `TestSchemaVersioning`, `TestMigrationCrashWindows` |
+| No credential-shaped string is committed | `scripts/secret_sweep.py` | run it; exits non-zero on any finding |
 
 ## 8. Observability
 
@@ -176,9 +188,9 @@ well-behaved caller into retrying a normal event.
 
 | Tier | Command | Count | Model | Network |
 |---|---|---:|---|---|
-| Unit | `pytest tests/unit` | 183 | none | none |
-| Contract | `pytest tests/contract` | 137 | none | none |
-| Evaluation | `pytest tests/eval` | 104 | deterministic adapter | none |
+| Unit | `pytest tests/unit` | 291 | none | none |
+| Contract | `pytest tests/contract` | 161 | none | none |
+| Evaluation | `pytest tests/eval` | 147 | deterministic adapter | none |
 | Live model | `pytest -m live_model` | 1 | Claude | required |
 | Fixture cases | `ap-agent eval` | 5 cases | deterministic adapter | none |
 | Retrieval quality | included in `ap-agent eval` | 16 queries | none | none |

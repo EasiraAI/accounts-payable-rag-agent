@@ -1,6 +1,9 @@
 # Design spec: Accounts-Payable Processing and RAG Workflow Agent
 
-Date: 2026-09-11. Status: proposed, awaiting approval before implementation.
+Date: 2026-09-11. **Status: historical** — this is the design as proposed, before
+implementation. It is kept because the alternatives it weighs are the reason the delivered
+shape is what it is. Where the two differ, the delivered state is described in the README and
+in CLAUDE.md §15; ADR-0006 and ADR-0007 record the two decisions taken after this was written.
 Decisions referenced: ADR-0001 to ADR-0005 in `docs/adr/`.
 
 ## 1. Goal
@@ -41,7 +44,8 @@ Non-goals: a UI, real payment rails, real ERP integration, multi-tenant auth.
 ```
 
 Trust boundary: everything left of the tool layer is policy. Tool results, retrieved
-chunks and case input are data. See `.claude/skills/trust-boundaries/SKILL.md`.
+chunks and case input are data. The boundary is drawn in §4 of the design note and enforced
+in `llm/prompts.py`, `tools/contracts.py` and `observability/redact.py`.
 
 ## 3. Package layout (`src/ap_agent/`)
 
@@ -130,7 +134,8 @@ idempotency key, fencing function.
 `tests/contract`: tool schemas round-trip, API responses match models, repository
 round-trip, restart/resume.
 `tests/eval`: FIN-001..005 through the full driver with `FakeClient`; assertions from the
-`fixture-cases` skill; `GET /evaluations` and `cli eval` run this tier and emit a report.
+Fixture assertions live in the fixture files themselves, so the expected control behaviour
+is declared once; `GET /evaluations` and `ap-agent eval` run this tier and emit a report.
 Retrieval golden set: query -> expected `document_id §section`, Hit@1, Hit@3, MRR, plus
 "no ADV-002 in top-k" and "FIN-POL-003 above FIN-POL-003-OLD" checks.
 Live tier: same eval with `AnthropicClient`, labelled optional.

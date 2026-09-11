@@ -266,10 +266,12 @@ Full reasoning in `docs/adr/`. Summary:
 | Language / runtime | Python 3.12, pydantic v2, FastAPI, Typer, SQLite, `uv` lockfile | 0001 |
 | Orchestration | Framework-free explicit state machine with SQLite checkpointing; LangGraph and Temporal named as scale-up paths | 0002 |
 | Retrieval | Section-level chunks, BM25 with metadata re-ranking (superseded demoted, untrusted labelled); optional local hybrid mode | 0003 |
-| Persistence / idempotency | SQLite WAL; `decisions.idempotency_key UNIQUE`; `BEGIN IMMEDIATE`; optimistic run version | 0004 |
+| Persistence / idempotency | SQLite WAL; four load-bearing constraints (`decisions.idempotency_key` PRIMARY KEY, `decisions.run_id` UNIQUE, partial UNIQUE on `decisions.invoice_fingerprint`, `approval_signatures` PRIMARY KEY `(approval_id, approver_id)`); `BEGIN IMMEDIATE`; optimistic run version | 0004 |
 | LLM | `LLMClient` protocol; Anthropic adapter with forced tool-use structured output; `FakeClient` for all deterministic tiers; model used only in ASSESS_RISK and RECOMMEND | 0005 |
+| Schema versioning | `PRAGMA user_version` with ordered forward migrations, each step and its stamp in one transaction; a store from a newer build is refused | 0006 |
+| Two-signature approvals | Approvals accumulate signatures; distinctness enforced by the `approval_signatures` primary key, which is also the replay detector; Financial Control may co-sign without a limit | 0007 |
 
-Design spec: `docs/superpowers/specs/2026-09-11-ap-agent-design.md`.
+Design spec: `docs/specs/2026-09-11-ap-agent-design.md`.
 Implementation plan: `docs/plans/2026-09-11-implementation-plan.md`.
 
 ## 12. Repository Layout
@@ -280,16 +282,17 @@ src/ap_agent/
   config/       Settings from env (.env.example documents every key)
   domain/       typed contracts + rules/ (pure Decimal functions)
   rag/          ingest, index, retriever
-  tools/        five tools, mocks, fault injection
+  tools/        six tool contracts, mocks, fault injection
   llm/          LLMClient protocol, anthropic_client, fake_client, prompts (fencing)
-  orchestration/ phases, state, machine, gates
+  orchestration/ phases (plan and preconditions), machine, gates  (run state lives in domain/)
   persistence/  repository (SQLite)
   observability/ events, redact
   api/ cli/     FastAPI routes, Typer commands
 tests/unit tests/contract   no model calls, always green
 tests/eval                  FIN-001..005 via FakeClient; live tier optional
 fixtures/cases fixtures/mock_data
-docs/adr docs/plans docs/superpowers/specs docs/samples docs/diagrams
+docs/adr docs/plans docs/specs docs/samples docs/diagrams
+scripts/                     setup, sample rendering, credential sweep
 infra/                      Dockerfile, compose
 .claude/                    agents, skills, hooks for this project (see §13)
 ```
@@ -320,8 +323,78 @@ alternatives third, limitations stated plainly. Authoring tooling is not discuss
 code, comments, commit messages or docs. The single exception is
 `docs/AI_USAGE_DECLARATION.md`, written as the final step.
 
-## 15. Housekeeping Noted at Bootstrap
+## 15. Delivered State
 
-- `__MACOSX/` and `finance_rag_corpus/.DS_Store` are zip-extraction artefacts. Remove them
-  in Phase 0 (already excluded by `.gitignore`).
-- No git repository exists yet. Phase 0 initialises one.
+The system is built and verified. Numbers below are reproduced by `ap-agent eval` and
+`pytest -m "not live_model"`; do not restate them from memory.
+
+| | |
+|---|---|
+| Tests | 599 passing across three tiers (291 unit, 161 contract, 147 evaluation), plus 1 live-model test excluded by default |
+| Fixture cases | 5 of 5 (FIN-001 to FIN-005) |
+| Retrieval | Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 golden queries, 0 leaks |
+| Type checking | mypy strict, 57 modules, clean |
+| Lint | ruff, clean, including bandit and exception-handling rules |
+| Corpus | 15 documents, 58 section chunks |
+| Credential sweep | `scripts/secret_sweep.py`, 6 patterns, 0 findings |
+| Outcome coverage | all 5 FIN-POL-001 §3 outcomes reachable; all 10 FIN-POL-007 §1 exception categories raisable |
+
+Commands: `uv sync`, `ap-agent ingest`, `ap-agent eval`, `ap-agent serve`, `pytest`.
+
+### Design decisions a future change must respect
+
+These were argued, tested, and in three cases corrected after a fixture run proved an
+earlier reading wrong. Reversing one needs a reason, not a preference.
+
+1. **Policy thresholds are constants in `domain/rules/`, never read from retrieved text.**
+   Retrieval supplies citations; the numbers come from code, tested at every boundary.
+2. **The model decides nothing.** Two phases, narrative only. A model suggestion applies
+   only if strictly more conservative. Widening this breaks the injection tests' meaning.
+3. **The document tolerance is the widest single-line allowance, not the sum.** Summing lets
+   a variance be divided until every slice fits.
+4. **Fraud indicators come only from case-attached text and the vendor master.** Feeding
+   retrieved documents in made a duplicate case escalate on a notice about another supplier.
+5. **A single sub-threshold indicator does not hold an invoice.** FIN-POL-005 §3 sets the
+   threshold at two; §4 calls the score decision support only.
+6. **The round-dollar indicator requires a repeat.** §3 says "repeated". The modulus is
+   AUD 1,000, which is a choice rather than a policy figure and is stated in the exception it
+   raises.
+7. **The weekend manual-payment indicator reads what the case text asks for.** Not the run's
+   weekday, and not the computed due date. Two earlier versions used each of those: the first
+   made the indicator an accident of batch scheduling, and the second fired on two invoices in
+   seven for a condition FIN-POL-006 §2 has already remedied by moving the payment to the
+   preceding business day.
+8. **Injection patterns are anchored to clause boundaries.** FIN-POL-005 itself contains the
+   phrases a naive matcher fires on.
+9. **Exactly-once decisions rest on schema constraints, not control flow.** Four of them:
+   `decisions.idempotency_key` primary key, `decisions.run_id` UNIQUE, a partial UNIQUE index
+   on `decisions.invoice_fingerprint` (one decision per *invoice*, across runs), and
+   `approval_signatures` primary key `(approval_id, approver_id)`. That is what survives a
+   crash between a check and a write. The key material includes the amount, currency and
+   vendor, because without them a callback that changed the amount at the gate computed the
+   same key and was answered as a replay.
+10. **Read tools return results; they do not raise.** A run must hold on missing evidence, and
+    it cannot hold if the missing evidence crashed it.
+11. **The write tool re-checks approval itself.** Duplicating the orchestrator's gate is
+    deliberate.
+12. **Two approvals means two distinct people, and the store is what enforces it.** The
+    `approval_signatures` primary key answers both "has this person signed?" and "is this
+    delivery a replay?", so the two cannot disagree. Checking distinctness in rule code
+    instead turned an ordinary at-least-once retry into a failed run.
+13. **The store refuses to open a database from a newer build.** Forward migration is a
+    repair; running older code against a forward-migrated store is how a constraint leaves the
+    enforcement path while the application still believes it is there.
+14. **Nothing derived from the configured tax rate blocks a case.** FIN-POL-002 §2 requires a
+    separate assessment and states no rate. A version that held an invoice on the configured
+    figure held a partly GST-free supply, which no clause prohibits.
+15. **A control that is displayed and not applied is worse than one that is absent.** Four of
+    the ten defects found in review were fields the system stored and never read: the
+    delegation's scope, the invoice's payment terms, the approval's signature requirement, and
+    the `invalid_reasons` list that made `REJECT_INVALID` unreachable. Each appeared in the
+    output, so each looked implemented. Assert on behaviour at the gate, not on the presence
+    of a field.
+
+### Housekeeping completed at bootstrap
+
+`__MACOSX/` and `finance_rag_corpus/.DS_Store` were zip-extraction artefacts and were
+removed; both are excluded by `.gitignore`. Git was initialised with conventional commits.

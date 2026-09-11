@@ -14,9 +14,20 @@ arithmetic in code, and tests that separate model-dependent runs from stable one
 
 ```
 class LLMClient(Protocol):
-    def complete_structured(self, *, system: str, user: str,
-                            schema: type[BaseModel], max_tokens: int) -> BaseModel: ...
+    @property
+    def model_name(self) -> str: ...
+
+    def complete_structured[T: BaseModel](
+        self, *, system: str, user: str,
+        schema: type[T], max_tokens: int | None = None,
+    ) -> tuple[T, ModelCallRecord]: ...
 ```
+
+The return type is a tuple, not the model alone. Every call has to produce an auditable record
+— provider, model, schema, attempt count, token counts — and returning it alongside the
+validated object means a caller cannot obtain the answer without also holding the evidence of
+how it was obtained. The alternative, a record written to a side channel inside the adapter,
+would have let a new adapter satisfy the protocol while recording nothing.
 
 Two implementations:
 
@@ -24,8 +35,10 @@ Two implementations:
   schema as the single forced tool so the response is structured by construction.
   Model, max tokens, timeout and retries come from `Settings` (env or `.env`).
 - `FakeClient`: returns canned, schema-valid responses keyed by phase and case. Used by
-  unit, contract and default eval tiers. Also supports fault modes (`malformed_json`,
-  `schema_violation`, `timeout`) to test the repair and failure paths.
+  unit, contract and default eval tiers. Also supports fault modes (`schema_violation`,
+  `always_invalid`, `unavailable`, `inject_compliance`, `hostile_narrative`) to test the
+  repair path, the explicit-failure path, and the two ways a model can carry an injected
+  instruction: in the structured fields, and in prose alongside compliant fields.
 
 Provider selection is a single string setting, `AP_LLM_PROVIDER`. Adding a second real
 provider (for example Bedrock-hosted Claude or an OpenAI model) means one new adapter

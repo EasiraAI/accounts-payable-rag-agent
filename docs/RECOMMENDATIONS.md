@@ -4,29 +4,15 @@ What I would do next, in priority order. Each item states the gap, the change, a
 sits where it does. The ordering is by risk reduction per unit of effort, not by how
 interesting the work is.
 
-Items 1 to 4 are the ones I would not deploy without.
+Items 1 to 3 are the ones I would not deploy without.
+
+The first release's top recommendation was to enforce the second approver rather than merely
+record it. That is now done, along with several other controls the corpus requires, so those
+items have left this list; the section at the end says what was delivered and what it replaced.
 
 ---
 
-## 1. Enforce the second approver, do not merely record it
-
-**Gap.** FIN-POL-003 §3 requires two approvals for a higher-risk transaction, one of them
-from Financial Control. The engine computes that requirement, records it on the
-recommendation and stores it on the approval request, and the approver sees it. Nothing
-enforces it: a single sufficient approver completes the run.
-
-**Change.** Model the approval as a set of required signatures rather than one decision. The
-gate opens when every required signature is present, distinct, and each signatory is within
-their own authority. The `approvals` table grows a `signatures` child table; the gate
-function changes from "is this approval APPROVED" to "are the required signatures
-collected".
-
-**Why first.** It is the only place where the system computes a control correctly and then
-does not apply it. Every other gap on this list is a missing capability; this one is a
-control that looks enforced and is not, which is worse than an absent control because it
-invites reliance.
-
-## 2. Approver identity from an identity provider
+## 1. Approver identity from an identity provider
 
 **Gap.** The approver identifier and role arrive in the callback body and are taken at face
 value. Authority is validated against the matrix and the register, but *who the caller is* is
@@ -42,7 +28,7 @@ unauthenticated assertion. It is second only because item 1 concerns a control t
 already computed, whereas this one needs an external dependency the take-home environment
 does not have.
 
-## 3. Authentication and rate limiting on the HTTP surface
+## 2. Authentication and rate limiting on the HTTP surface
 
 **Gap.** The service has neither. It binds to localhost, which is a deployment convention
 rather than a control.
@@ -55,7 +41,7 @@ missing half.
 **Why third.** Necessary before any deployment, but it protects a system whose internal
 controls are already sound, so it ranks below the two items that concern those controls.
 
-## 4. Durable execution for the driver
+## 3. Durable execution for the driver
 
 **Gap.** The state machine and its SQLite checkpointing are hand-written. They are correct
 for the failure modes tested here, and the exactly-once decision guarantee rests on schema
@@ -75,7 +61,7 @@ window is narrow, not absent, and it involves money.
 
 ---
 
-## 5. PostgreSQL in place of SQLite
+## 4. PostgreSQL in place of SQLite
 
 The schema ports directly; `BEGIN IMMEDIATE` becomes `SELECT ... FOR UPDATE`. The repository
 is the only module containing SQL, so the change is contained to one file.
@@ -86,7 +72,7 @@ there is a second instance, and not before: SQLite in WAL mode is genuinely adeq
 writer, and swapping it earlier would add an operational dependency for no property the
 system does not already have.
 
-## 6. Vector store with permission filtering and deletion propagation
+## 5. Vector store with permission filtering and deletion propagation
 
 Two policy requirements are currently modelled rather than met. FIN-POL-010 §3 requires
 retrieval to enforce source permissions *before* returning chunks; the retriever filters on a
@@ -100,7 +86,7 @@ both. Note that this is about *access control and lifecycle*, not about retrieva
 Hit@3 is already 1.00 on the golden set, and adding embeddings would not improve a measure
 that is saturated.
 
-## 7. Foreign-exchange rate service
+## 6. Foreign-exchange rate service
 
 The system holds a foreign-currency invoice against an AUD order rather than converting it,
 which is what FIN-POL-009 §3 requires when the order does not permit conversion. It cannot
@@ -112,7 +98,7 @@ A rate service supplying rate identifier, source and date turns a hold into a de
 `Calculation` record already has fields for the inputs and the policy reference, so the
 conversion would be auditable the moment the rates are.
 
-## 8. Public-holiday calendar
+## 7. Public-holiday calendar
 
 Business-day arithmetic currently skips weekends only, because the corpus references public
 holidays (FIN-POL-006 §2) without supplying a calendar. Exception review dates and
@@ -120,7 +106,7 @@ payment-run scheduling are therefore indicative, which the README states. A juri
 calendar per legal entity makes both exact. Small, self-contained, and the kind of
 approximation that quietly produces wrong due dates if left in place.
 
-## 9. Retrieval improvements, once there is a reason
+## 8. Retrieval improvements, once there is a reason
 
 Three things I deliberately did not do, with the condition that would change my mind:
 
@@ -141,7 +127,7 @@ What I would do instead, when the corpus grows: expand the golden set first, and
 measurement decide. The set is 16 queries against 15 documents; it is sized to the corpus,
 and a larger corpus needs a larger set before any ranking change can be justified.
 
-## 10. Strengthen injection detection beyond a heuristic
+## 9. Strengthen injection detection beyond a heuristic
 
 The current detector is anchored to clause boundaries and is honest about what that misses: a
 well-formed attack in the passive voice, in another language, or encoded. It is deliberately
@@ -156,7 +142,7 @@ than one document, so the detector's false-negative rate is measured rather than
 I would not invest in better pattern matching. Pattern matching is the part of this that
 cannot be made reliable, which is exactly why the design routes around it.
 
-## 11. OpenTelemetry export
+## 10. OpenTelemetry export
 
 The event emitter already carries a correlation identifier, durations and outcomes on every
 event, and records provider, model and token counts on every model call. Exporting spans is a
@@ -167,9 +153,9 @@ Listed here rather than higher because the data already exists and is queryable 
 `events` table. This buys convenience and cross-service correlation, not visibility the
 system lacks.
 
-## 12. A review queue for held and escalated cases
+## 11. A review queue for held and escalated cases
 
-Three of the five fixture cases end in `HELD` or `ESCALATE_CONTROL_REVIEW`, and in production
+Two of the five fixture cases end in `HELD` or `ESCALATE_CONTROL_REVIEW`, and in production
 most cases would. At present they end and sit in the database. FIN-POL-007 §4 sets service
 levels, prioritises invoices due within two business days, and requires escalation to the
 Accounts Payable Manager after ten business days.
@@ -178,7 +164,33 @@ None of that can be honoured without a queue that knows a case's age and owner. 
 records already carry the owner and the review date, so the data model is ready; what is
 missing is something that reads it and acts.
 
-## 13. Cost budgets per run
+## 12. Raise the tool budget derivation to account for a second signature
+
+**Gap.** The default of sixteen tool attempts is derived from the worst case of a single
+approval. A two-signature approval resolves twice, and each resolution naming a delegation
+reads the authority register, so a higher-risk run with two delegated approvers needs
+seventeen. The budget is a setting, so the effect is a refusal at the second signature rather
+than anything unsafe, but the derivation no longer matches the flow it was derived from.
+
+**Change.** Derive the ceiling from the phase plan *plus* the maximum signature count, and
+assert the derivation in a test so the two cannot drift again.
+
+**Why here.** It is a correctness issue in a documented number rather than in behaviour, and
+it is visible only at a configuration boundary a deployment would raise anyway.
+
+## 13. A configurable tax profile
+
+**Gap.** `domain/rules/tax.py` carries one rate, one tolerance and an implicit assumption that
+a domestic invoice is an Australian one. The corpus states a jurisdiction and no rate, so a
+constant was the honest choice for one jurisdiction, and it is the wrong shape for two.
+
+**Change.** A tax profile in settings: rate, rounding tolerance, the currencies it applies to,
+and the exempt categories a supply may claim. The rule reads the profile; nothing else changes.
+
+**Why here.** Nothing derived from the rate blocks a case today, so this buys correctness of
+reporting rather than of decisions. It becomes urgent the moment a second jurisdiction appears.
+
+## 14. Cost budgets per run
 
 Token counts are recorded per model call, so a per-run ceiling is a gate over data the system
 already has rather than new instrumentation. Add it when the live provider is the default;
@@ -212,3 +224,36 @@ it cannot hold if the missing evidence crashed the run.
 **The write tool keeps its own authorisation check.** It duplicates the orchestrator's gate on
 purpose. A single enforcement point for the property that keeps money from moving is a single
 point of failure.
+
+---
+
+## Delivered since the first release
+
+These were on this list, or were found by review of it, and are now implemented. They are
+recorded here because a recommendations list that silently drops items is not a record of
+anything.
+
+| Was | Now | Where |
+|---|---|---|
+| The second approver was computed and not enforced | Approvals accumulate signatures; the gate opens on count, distinctness and a Financial Control signature | [adr/0007](adr/0007-two-signature-approvals.md) |
+| One decision per *run* | One decision per run and one per *invoice*, across runs | `persistence/schema.sql` |
+| The schema was applied with `IF NOT EXISTS` and never versioned | `user_version` with ordered forward migrations; a newer store is refused | [adr/0006](adr/0006-schema-versioning-and-migration.md) |
+| `REJECT_INVALID` was unreachable | `domain/rules/validity.py` | FIN-POL-001 §2, §3 |
+| `TAX_QUERY` was unreachable | `domain/rules/tax.py` | FIN-POL-002 §2 |
+| Payment terms were carried and never read | `domain/rules/payment_terms.py`, with a proposed standard run | FIN-POL-006 §1 to §3 |
+| Payment instructions were never compared with the vendor master | `domain/rules/payment_instructions.py` | FIN-POL-001 §5 |
+| Delegation scope was stored and never compared | `domain/rules/authority.py` | FIN-POL-003 §4 |
+| Repeated non-PO purchasing was not detected | `domain/rules/non_po.py` | FIN-POL-012 §4 |
+| A credit note was processed as an invoice | Recognised and held for Financial Control | FIN-POL-008 §1 |
+
+The pattern across them is worth naming, because it is the first thing I would look for in a
+system like this. Four of the ten were not missing code at all. They were fields or
+requirements that the system *stored and never read*: the delegation's scope, the invoice's
+payment terms, the approval's second-signature requirement, and the `invalid_reasons` list
+that made `REJECT_INVALID` reachable in the type system and unreachable in practice. Each
+appeared in the run output, so each looked implemented, and each was inert.
+
+That failure mode is harder to find than an absent control and worse to ship, because a
+control that is displayed but not applied invites exactly the reliance an absent one would not.
+It is also why the tests added with these fixes assert on behaviour at the gate rather than on
+the presence of a field.

@@ -168,17 +168,24 @@ def render(case_id: str, spec: dict[str, str]) -> str:
             ]
 
     if recommendation and recommendation.get("calculations"):
-        out += ["## Calculations", "", "Every figure below was computed in decimal arithmetic "
-                "by the rule engine, not by the model (FIN-POL-002 §5). Inputs, formula, "
-                "result and rounding are all stored so any of them can be re-performed by "
-                "hand.", ""]
+        out += [
+            "## Calculations",
+            "",
+            "Every figure below was computed in decimal arithmetic "
+            "by the rule engine, not by the model (FIN-POL-002 §5). Inputs, formula, "
+            "result and rounding are all stored so any of them can be re-performed by "
+            "hand.",
+            "",
+        ]
         rows = [
             [
                 f"`{item['name']}`",
                 item["formula"],
                 f"{item['result']}{' ' + item['currency'] if item.get('currency') else ''}",
                 item["policy_ref"],
-                "pass" if item.get("passed") is True else ("fail" if item.get("passed") is False else ""),
+                "pass"
+                if item.get("passed") is True
+                else ("fail" if item.get("passed") is False else ""),
             ]
             for item in recommendation["calculations"][:14]
         ]
@@ -188,9 +195,14 @@ def render(case_id: str, spec: dict[str, str]) -> str:
         out.append("")
 
     if recommendation and recommendation.get("exceptions"):
-        out += ["## Exceptions", "", "FIN-POL-007 §2 rejects generic notes, so each record "
-                "names the failed rule, the expected and observed facts, an owner and a "
-                "review date.", ""]
+        out += [
+            "## Exceptions",
+            "",
+            "FIN-POL-007 §2 rejects generic notes, so each record "
+            "names the failed rule, the expected and observed facts, an owner and a "
+            "review date.",
+            "",
+        ]
         for item in recommendation["exceptions"]:
             out += [
                 f"### {item['category']}",
@@ -208,8 +220,12 @@ def render(case_id: str, spec: dict[str, str]) -> str:
             out.append("")
 
     if result and result.get("unknowns"):
-        out += ["## Unknowns", "", "Recorded explicitly, so missing evidence is never read as "
-                "an absence of problems.", ""]
+        out += [
+            "## Unknowns",
+            "",
+            "Recorded explicitly, so missing evidence is never read as an absence of problems.",
+            "",
+        ]
         for item in result["unknowns"]:
             out += [
                 f"- **{item['item']}**",
@@ -222,10 +238,15 @@ def render(case_id: str, spec: dict[str, str]) -> str:
 
     if recommendation and recommendation.get("cited_evidence"):
         citations = recommendation["cited_evidence"]
-        out += ["## Cited evidence", "", f"{len(citations)} citations, each resolvable to one "
-                "section of one document. The model returns chunk identifiers and they are "
-                "resolved against what this run actually retrieved, so a fabricated citation "
-                "cannot appear here.", ""]
+        out += [
+            "## Cited evidence",
+            "",
+            f"{len(citations)} citations, each resolvable to one "
+            "section of one document. The model returns chunk identifiers and they are "
+            "resolved against what this run actually retrieved, so a fabricated citation "
+            "cannot appear here.",
+            "",
+        ]
         rows = [
             [
                 f"`{item['chunk_id']}`",

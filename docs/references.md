@@ -41,6 +41,8 @@ reliability patterns. Cited by short key in the ADRs and design note.
 - **[Stripe]** Stripe. "Idempotent requests." API documentation. https://docs.stripe.com/api/idempotent_requests
 - **[Temporal]** Temporal Technologies. "Durable execution" concepts documentation. https://docs.temporal.io/
 - **[SQLiteWAL]** SQLite. "Write-Ahead Logging" and "Transaction" documentation. https://www.sqlite.org/wal.html
+- **[SQLitePragma]** SQLite. "PRAGMA statements" (`user_version`, `table_info`) and "ALTER TABLE". https://www.sqlite.org/pragma.html (The version pragma is the conventional place to record a schema version, and both DDL and the pragma are transactional, which is what makes a migration and its stamp one atomic step.)
+- **[Ambler2006]** Ambler, S., Sadalage, P. "Refactoring Databases: Evolutionary Database Design." Addison-Wesley, 2006. (Forward-only migration, and why a schema change and its version record belong in one transaction.)
 - **[Nygard2018]** Nygard, M. "Release It! Design and Deploy Production-Ready Software." 2nd ed., Pragmatic Bookshelf, 2018. (Timeouts, circuit breakers, bulkheads.)
 - **[Google2016]** Beyer, B. et al. "Site Reliability Engineering." O'Reilly, 2016. Chapter on handling overload and retries.
 
@@ -54,6 +56,7 @@ reliability patterns. Cited by short key in the ADRs and design note.
 - **[COSO2013]** COSO. "Internal Control, Integrated Framework." 2013. (Segregation of duties, control activities.)
 - **[ISO27001]** ISO/IEC 27001:2022. Information security management. (Logging and access control clauses referenced by FIN-POL-010.)
 - **[AusPayNet]** Australian Payments Network. Guidance on business email compromise and payment redirection fraud. https://www.auspaynet.com.au/
+- **[ATO-GST]** Australian Taxation Office. "GST" and "Tax invoices": the 10% rate, the requirements for a valid tax invoice, and GST-free supplies. https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst (Cited for the configured rate in `domain/rules/tax.py`. The policy corpus states a jurisdiction and no rate, so the rate is an environmental assumption and this is the authority behind the value chosen; the existence of GST-free supplies is why an understated tax is recorded rather than queried.)
 - **Northstar Group policy corpus.** FIN-POL-001 to FIN-POL-012, `finance_rag_corpus/`. Synthetic, in-repo.
 
 ## Tooling and libraries

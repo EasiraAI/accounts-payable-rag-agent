@@ -20,6 +20,7 @@ from ap_agent.api.app import create_app
 from ap_agent.composition import build_application
 from ap_agent.config.settings import Settings
 from ap_agent.llm.fake_client import FakeLLMClient
+from ap_agent.persistence.repository import SCHEMA_VERSION
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_DIR = REPO_ROOT / "finance_rag_corpus"
@@ -375,6 +376,17 @@ class TestDiagnostics:
         assert [tool["name"] for tool in writers] == ["submit_finance_decision"]
         assert body["trust_boundaries"]["untrusted_case_input"]
         assert body["trust_boundaries"]["enforcement"]
+
+    def test_the_manifest_reports_the_schema_version_of_the_open_store(
+        self, client: TestClient
+    ) -> None:
+        """The static manifest documents a schema version, so the live one must report it.
+
+        Reported from the database rather than from the build's constant: the two agree after a
+        successful open, and an operator checking the value wants what the store says.
+        """
+        body = client.get("/manifest").json()
+        assert body["configuration"]["schema_version"] == SCHEMA_VERSION
 
     def test_the_manifest_contains_no_credential(self, client: TestClient) -> None:
         text = client.get("/manifest").text

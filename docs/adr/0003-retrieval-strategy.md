@@ -21,7 +21,7 @@ and citation metadata, plus an explicit statement of strategy and limitations.
 | Dense embeddings only (hosted, e.g. Voyage or OpenAI) | Good recall for paraphrase; weaker on exact identifiers like `FIN-POL-003`. | Deterministic per model version, but a network call in tests. | API key and network. | Adds a second provider to configure. |
 | Local dense embeddings (`sentence-transformers`, e.g. `bge-small`) | Good; no network. | Deterministic. | 100 MB+ model download, torch dependency. | Heavy for a laptop install step. |
 | **Hybrid BM25 + dense with reciprocal rank fusion (optional mode)** | Best recall in the literature for mixed queries. | Deterministic given both rankers. | Same as chosen dense option. | Cormack et al. (2009) RRF. |
-| Vector database (Chroma, Qdrant, pgvector) | Unnecessary at 15 documents, roughly 80 chunks. | n/a | Service or extra package. | Named as the production change. |
+| Vector database (Chroma, Qdrant, pgvector) | Unnecessary at 15 documents and 58 chunks. | n/a | Service or extra package. | Named as the production change. |
 
 ## Decision
 
@@ -29,7 +29,7 @@ and citation metadata, plus an explicit statement of strategy and limitations.
    Section boundaries are the natural citation unit in policy text ("FIN-POL-002 §2"),
    chunks stay under about 300 tokens, and no sentence is split.
 2. **Index:** BM25 (`rank_bm25`, BM25Okapi) over lowercased, stemmed-lite tokens, persisted
-   as a pickle with a corpus hash so re-ingestion is skipped when unchanged.
+   as JSON with a corpus hash so re-ingestion is skipped when unchanged.
 3. **Metadata-aware re-ranking, applied after lexical scoring:**
    - `status: superseded` multiplied by 0.3 and labelled `superseded` in the citation.
    - `status: untrusted` keeps its score but is labelled `untrusted` and routed to the
@@ -50,6 +50,15 @@ methods help most on paraphrased or long natural-language queries, which are not
 query pattern here. Determinism matters more: retrieval grounding tests must run in CI
 without a model or network. Metadata re-ranking is what actually handles the traps; no
 embedding model knows that version 1.0 is superseded.
+
+### A correction worth recording
+
+An earlier draft of this record said the index was persisted as a pickle. It is JSON, and the
+difference is a safety property rather than a preference: a pickle is executable content, so
+loading one is equivalent to running whatever wrote it. An index file in a data directory is
+exactly the sort of artefact that gets copied between environments, and a retrieval index is
+not worth that exposure. The corpus hash beside it is what makes a stale index detectable, and
+nothing about the format needs to be.
 
 ## Known limitations (to be repeated in the design note)
 

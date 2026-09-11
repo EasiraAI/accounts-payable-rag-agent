@@ -38,11 +38,22 @@ INTAKE -> RETRIEVE_POLICY -> GATHER_EVIDENCE -> RECONCILE -> ASSESS_RISK -> RECO
                          requires approval                        no approval needed
                                     |                                         |
                           AWAITING_APPROVAL --approve--> EXECUTE_DECISION      |
-                                    |                          |              |
-                                 reject                         v              v
-                                    v                     COMPLETED          HELD
-                                  HELD
+                              |     |   ^                      |              |
+                              |  reject |                       v              v
+                              |     |   +-- signature recorded, COMPLETED    HELD
+                              |     |       requirement not yet met
+                              |     v
+                              |   HELD
+                              +-- duplicate delivery: inert
 ```
+
+Two self-transitions on `AWAITING_APPROVAL`, and they are different things. A duplicate
+delivery from an approver who has already signed is inert: no validation, no tool call, no
+state change, and the caller gets the same body with `replayed: true`. A *first* signature on
+a two-signature approval is not inert at all — it validates authority, spends a tool call if
+the callback names a delegation, and records a row — and the run still stays in
+`AWAITING_APPROVAL` because FIN-POL-003 §3 is not yet satisfied. See
+[adr/0007-two-signature-approvals.md](adr/0007-two-signature-approvals.md).
 
 ### What the framework would have provided, and what the code enforces
 
@@ -82,6 +93,14 @@ tool attempts: four policy retrievals, one conditional evidence retrieval, three
 attempts, three purchase-order attempts, three history attempts, one delegation lookup, one
 decision.
 
+One case sits at that ceiling. A two-signature approval resolves twice, and each resolution
+that names a delegation reads the authority register, so a higher-risk run with two delegated
+approvers needs seventeen attempts against a budget of sixteen. The budget is per run and
+configurable, so the effect is a refusal at the second signature rather than anything unsafe,
+but it is a real limit and it is the reason the budget is a setting rather than a constant.
+Raising the derivation to account for the second signature is in
+[RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+
 ### Tools are called by need, not by loop
 
 With a free-running agent loop, "call tools only when needed" is a property one hopes the
@@ -91,6 +110,34 @@ purchase-order lookup happens only when the case names an order; the evidence re
 happens only when the case carries free text or the vendor shows a recent bank change; the
 delegation lookup happens only when an approval callback names one. A reviewer can therefore
 tell whether any call was justified, and no retrieved document can cause one.
+
+### The controls, and which policy section each answers to
+
+Every control is a pure function over typed evidence, in `domain/rules/`, and each module maps
+to one policy document. None of them sees a model, a tool or a clock it did not receive.
+
+| Module | Policy | What it decides |
+|---|---|---|
+| `validity` | FIN-POL-001 §2, §3; FIN-POL-008 §1 | Whether the submission is a processable invoice at all: minimum evidence, its own arithmetic, future dating, and whether it is really a credit note. The only path to `REJECT_INVALID`. |
+| `matching` | FIN-POL-002 | Three-way match per line and for the document total, with the tolerance band each line type earns. |
+| `tax` | FIN-POL-002 §2 | Tax as its own question. The only path to `TAX_QUERY`. |
+| `duplicates` | FIN-POL-005 §1, §2 | Exact and fuzzy duplicate classification, and whether a match was already settled. |
+| `fraud` | FIN-POL-005 §3, §4 | The eight indicators, and injection detection as one of them. |
+| `vendor` | FIN-POL-004 | Status, risk flags, bank-change recency and sanctions review. |
+| `payment_instructions` | FIN-POL-001 §5 | Whether payment details in supplied text match the verified vendor master. |
+| `authority` | FIN-POL-003 | The approver's limit, delegation validity and scope, and whether two signatures are required. |
+| `segregation` | FIN-POL-001 §4 | Requester, receipter and approver distinctness, split across the two moments it applies to. |
+| `payment_terms` | FIN-POL-006 §1 to §3; FIN-POL-007 §4 | Agreed terms against printed terms, the due date, and a proposed standard run. |
+| `non_po` | FIN-POL-012 §4 | Repeated non-PO invoicing by one supplier: the only control here about a pattern rather than a transaction. |
+| `outcome` | FIN-POL-001 §3 | The precedence that turns all of the above into one of five outcomes. |
+
+Two properties of that table matter more than its contents. Every one of the five outcomes
+FIN-POL-001 §3 permits is reachable, and every one of the ten exception categories FIN-POL-007
+§1 defines can be raised — which was not true of the first version, where `REJECT_INVALID` and
+`TAX_QUERY` had no code path at all. And a new control affects the outcome by existing: the
+orchestrator passes the run's whole accumulated exception set to `decide_outcome`, rather than
+naming three results it reads, because an earlier version silently ignored a blocking exception
+from a control added after that signature was written.
 
 ### Where the model sits
 
@@ -283,12 +330,31 @@ through the other's fields.
 
 ## 6. Persistence and resume
 
-SQLite in WAL mode, four tables. Two constraints carry safety weight rather than hygiene:
+SQLite in WAL mode, five tables. Four constraints carry safety weight rather than hygiene,
+and three of them were added after a review defeated an earlier version:
 
 ```sql
-decisions.idempotency_key  PRIMARY KEY   -- a duplicate callback collides
-decisions.run_id           UNIQUE        -- a run records at most one decision, ever
+decisions.idempotency_key    PRIMARY KEY   -- a duplicate callback collides
+decisions.run_id             UNIQUE        -- a run records at most one decision, ever
+decisions.invoice_fingerprint UNIQUE       -- partial: one decision per *invoice*, across runs
+approval_signatures          PRIMARY KEY (approval_id, approver_id)
 ```
+
+The third exists because per-run uniqueness left the double-payment path open: one identical
+invoice submitted as three separate runs, approved once each, produced three posted decisions.
+`run_id UNIQUE` guarantees one decision per run and nothing guaranteed one per invoice. The
+fourth is what makes "two approvals" mean two people, and it is also how a duplicate delivery
+is detected — one mechanism answering both questions, so the two cannot disagree.
+
+The store also records its own shape. Every statement in `schema.sql` is
+`CREATE ... IF NOT EXISTS`, which is right for a new database and silently wrong for an
+existing one: a table that already exists keeps the columns it was created with and the
+statement reports success. Since the constraints above *are* the exactly-once guarantee, a
+store whose constraints differ from the code's expectations is not degraded but unsafe. So
+`SCHEMA_VERSION` and SQLite's `user_version` pragma gate the open: an older store is migrated
+forward, each step and its version stamp in one transaction, and a store written by a newer
+build is refused rather than used. See
+[adr/0006-schema-versioning-and-migration.md](adr/0006-schema-versioning-and-migration.md).
 
 The obvious implementation of "record this once" is to look for an existing row and write if
 absent. That is wrong under concurrency and under crashes, because between the read and the
@@ -297,8 +363,10 @@ adapter. Either way the invariant is lost. So uniqueness is declared in the sche
 collision *is* the detection mechanism. `BEGIN IMMEDIATE` takes the write lock up front, so
 concurrent callers serialise at the database rather than racing in application code.
 
-The key is derived in code from the run, the approval and the outcome, never accepted from a
-caller: a caller-supplied key could be varied to defeat the guarantee, which is the opposite
+The key is derived in code from the run, the approval, the outcome, the amount, the currency
+and the vendor, never accepted from a caller. The last three are in the material because
+without them a callback that changed the amount at the gate computed the same key as the
+approved one, collided, and was reported as a replay of a decision that was never taken: a caller-supplied key could be varied to defeat the guarantee, which is the opposite
 of what an idempotency key is for. A second delivery returns the *stored* response, so
 responses are byte-identical across deliveries. The same key with different arguments is a
 conflict rather than a replay, because returning the stored response would answer a different
@@ -361,9 +429,9 @@ Three tiers, separated by what they depend on rather than by speed.
 
 | Tier | Count | Depends on | Protects |
 |---|---|---|---|
-| Unit | 183 | nothing | Rule thresholds at their boundaries, redaction, property-based invariants |
-| Contract | 137 | nothing | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
-| Evaluation | 104 | deterministic adapter | Retrieval grounding, the five cases, safety properties |
+| Unit | 291 | nothing | Rule thresholds at their boundaries, redaction, property-based invariants |
+| Contract | 161 | nothing | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
+| Evaluation | 147 | deterministic adapter | Retrieval grounding, the five cases, safety properties |
 | Live model | 1 | external access | The same cases through a real model |
 
 Fixture assertions live in the fixture files, so the expected control behaviour is declared
@@ -396,8 +464,9 @@ change, which is the point of having declared them.
 chunks, per FIN-POL-010 §3, and deletion propagates to the index and its caches, per §5.
 
 **Identity.** Approver identity from single sign-on rather than asserted in a callback body,
-with the FIN-POL-003 §5 evidence fields populated from the identity provider. The second
-approver is enforced rather than merely recorded.
+with the FIN-POL-003 §5 evidence fields populated from the identity provider. The two-signature
+requirement is already enforced here; what production adds is confidence that a signature came
+from the person it names.
 
 **Secrets management.** Keys from a managed secret store rather than the environment, with
 rotation.

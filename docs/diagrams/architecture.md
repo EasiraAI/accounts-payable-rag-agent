@@ -22,7 +22,7 @@ graph TB
     subgraph trusted["TRUSTED: policy and control"]
         ORCH["Orchestrator<br/><i>phases, budgets, transitions</i>"]
         GATES["Gates<br/><i>approval authorisation, step budget</i>"]
-        RULES["Rule engine<br/><i>Decimal matching, duplicates,<br/>vendor, authority, fraud, outcome</i>"]
+        RULES["Rule engine<br/><i>Decimal: validity, matching, tax,<br/>duplicates, fraud, vendor, payment<br/>instructions, authority, segregation,<br/>payment terms, non-PO, outcome</i>"]
         PROMPTS["Prompt construction<br/><i>nonce-delimited fencing</i>"]
     end
 
@@ -99,6 +99,7 @@ stateDiagram-v2
     AWAITING_APPROVAL --> EXECUTE_DECISION: approve<br/><i>authority validated first</i>
     AWAITING_APPROVAL --> HELD: reject<br/><i>nothing posted</i>
     AWAITING_APPROVAL --> AWAITING_APPROVAL: duplicate delivery<br/><i>inert: no validation,<br/>no tool call, no state change</i>
+    AWAITING_APPROVAL --> AWAITING_APPROVAL: first of two signatures<br/><i>authority validated, row recorded,<br/>gate stays closed (FIN-POL-003 §3)</i>
 
     EXECUTE_DECISION --> COMPLETED: exactly one decision recorded
 
@@ -144,8 +145,9 @@ sequenceDiagram
     A->>O: approve(run_id, decision)
     O->>D: load approval
     D-->>O: status PENDING
-    O->>O: validate authority<br/>(role, limit, delegation, self-approval)
-    O->>D: resolve approval to APPROVED
+    O->>O: validate authority<br/>(role, limit, delegation, scope, self-approval)
+    O->>D: add signature (approval_id, approver_id)
+    D-->>O: recorded; requirement met?<br/><i>count, distinctness, Financial Control</i>
     O->>G: authorise_decision(state, approval)
     G-->>O: permitted
     O->>T: call with derived idempotency key
