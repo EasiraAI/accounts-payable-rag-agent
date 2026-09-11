@@ -93,3 +93,14 @@ disallow_untyped_decorators = false
 [[tool.mypy.overrides]]
 module = ["rank_bm25.*"]
 ignore_missing_imports = true
+
+# sentence-transformers is the optional hybrid extra, and it pulls in PyTorch and
+# transformers. Following their imports turns a strict run from seconds into minutes, and
+# nothing is gained: the one call this project makes is behind the SupportsEncode protocol in
+# rag/dense.py, which is checked, and the import itself is inside a function guarded by
+# ImportError. Skipped rather than merely untyped, so the type gate stays fast enough to run
+# on every change and in CI.
+[[tool.mypy.overrides]]
+module = ["sentence_transformers.*", "torch.*", "transformers.*"]
+ignore_missing_imports = true
+follow_imports = "skip"

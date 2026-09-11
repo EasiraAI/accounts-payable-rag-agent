@@ -25,12 +25,28 @@ Two retry budgets, deliberately separate. Transport failures are retried by the 
 is configured with ``max_retries`` from settings. Schema failures are retried once here, by
 re-prompting with the validation error. Conflating them would let a validation problem
 consume the transport budget and produce a misleading "provider unavailable".
+
+## Reporting a provider failure
+
+The provider's own message is included in the raised error, and a permanent status is named as
+permanent. That sounds obvious; it was not what this adapter did.
+
+The first live run of this code failed all five cases with
+``INTERNAL_ERROR: provider returned 400 after 2 retries``. That message cost real diagnostic
+time, because it pointed at the request construction. The request was correct. What the
+provider had actually said was "Your credit balance is too low to access the Anthropic API" —
+an account condition a person fixes in a minute, reported as an internal error with an
+invented retry history. The SDK does not retry a 400 at all.
+
+So the distinction is now drawn where it belongs: a 408, 409, 429 or 5xx is transient and was
+retried; every other 4xx is permanent, was not retried, and says so. Provider error messages
+are not sensitive and are recorded; the API key never appears in one.
 """
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from anthropic.types import MessageParam, ToolChoiceToolParam, ToolParam
@@ -43,6 +59,44 @@ from ap_agent.llm.base import REPAIR_INSTRUCTION, ModelCallRecord
 
 #: Name of the single forced tool. The model sees this, so it reads as an instruction.
 _RESPONSE_TOOL_NAME = "report_analysis"
+
+
+#: Statuses the SDK retries. Everything else in the 4xx range is a permanent client or account
+#: condition: retrying a malformed request, an invalid key or an exhausted balance produces the
+#: same answer and delays the report to whoever can fix it.
+_TRANSIENT_STATUSES: Final = frozenset({408, 409, 429})
+
+
+def _provider_message(error: object) -> str:
+    """The provider's own explanation, or an empty string.
+
+    Dug out of the error body rather than ``str(error)`` because the SDK's string form leads
+    with the status line and truncates awkwardly. Nothing here can carry a credential: the body
+    is the provider's response, and the key travels in a request header.
+    """
+    body = getattr(error, "body", None)
+    if isinstance(body, dict):
+        inner = body.get("error")
+        if isinstance(inner, dict):
+            message = inner.get("message")
+            if isinstance(message, str):
+                return message
+    message = getattr(error, "message", None)
+    return message if isinstance(message, str) else ""
+
+
+def _status_error_detail(error: object, max_retries: int) -> str:
+    """Describe a provider status failure accurately, including whether it was retried."""
+    status = getattr(error, "status_code", None)
+    transient = isinstance(status, int) and (status in _TRANSIENT_STATUSES or status >= 500)
+    attempts = (
+        f"after {max_retries} retr{'y' if max_retries == 1 else 'ies'}"
+        if transient
+        else "not retried: a permanent client or account condition"
+    )
+    message = _provider_message(error)
+    detail = f"provider returned {status} ({attempts})"
+    return f"{detail}: {message}" if message else detail
 
 
 class AnthropicClient:
@@ -109,8 +163,7 @@ class AnthropicClient:
             )
         except APIStatusError as error:
             raise ModelUnavailable(
-                f"provider returned {error.status_code} after "
-                f"{self._settings.llm_max_retries} retries"
+                _status_error_detail(error, self._settings.llm_max_retries)
             ) from error
         except APIError as error:
             raise ModelUnavailable(f"provider call failed: {error}") from error

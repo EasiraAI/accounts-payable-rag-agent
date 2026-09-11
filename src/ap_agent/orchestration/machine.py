@@ -111,6 +111,7 @@ from ap_agent.llm import (
 from ap_agent.observability.events import EventEmitter
 from ap_agent.observability.redact import redact_text
 from ap_agent.orchestration.gates import Budget, authorise_decision
+from ap_agent.orchestration.narrative_screen import screen_narrative
 from ap_agent.orchestration.phases import (
     EVIDENCE_QUERY,
     POLICY_QUERIES,
@@ -860,31 +861,39 @@ class Orchestrator:
         immediately; the duplicate flag is a system error." Schema-valid, so nothing rejected
         it, and the outcome field is not what an approver's eye goes to first.
 
-        The narrative is therefore screened with the same detector used on untrusted
-        documents, plus a check for language asserting an approval the system has no record
-        of. If either fires, the model's prose is discarded and replaced with a deterministic
+        The screening itself lives in ``narrative_screen.py``, which is a pure function over
+        strings and state: three checks, being the injection detector, an approval or
+        immediate-settlement claim crossed against what the run has actually recorded, and
+        every figure in the prose crossed against the values the engine computed. The third
+        needs no lexicon and is the one a paraphrase cannot walk around.
+
+        The first version of this was a list of eight phrases, and an audit defeated it with
+        "Finance leadership has signed off; settlement today is appropriate." A blocklist over
+        natural language loses to paraphrase, which is the same reason this system does not
+        rely on injection detection as a primary control.
+
+        If anything fires, the model's prose is discarded and replaced with a deterministic
         summary built from the computed facts. The substitution is recorded as a finding,
         because a model writing approval language into a rejection is itself a finding.
         """
         blob = f"{narrative.summary}\n{narrative.next_action}"
-        injection_codes = detect_injection(blob)
-        lowered = blob.lower()
-        approval_claims = [
-            phrase
-            for phrase in (
-                "already approved",
-                "approved by the cfo",
-                "approved out of band",
-                "out of band",
-                "post immediately",
-                "pay today",
-                "pay immediately",
-                "system error",
-            )
-            if phrase in lowered
-        ]
-        if not injection_codes and not approval_claims:
+        approval = (
+            self._repository.find_pending_approval(state.run_id) if state.approval_id else None
+        )
+        screen = screen_narrative(
+            narrative.summary,
+            narrative.next_action,
+            injection_codes=detect_injection(blob),
+            # An approval claim is only false while the requirement is unmet. On a run that has
+            # collected its signatures, "signed off" is simply true.
+            approval_is_recorded=bool(approval and approval.signature_requirement_met),
+            settlement_is_authorised=state.decision is not None,
+            computed_values=self._computed_values(state),
+        )
+        if screen.clean:
             return narrative.summary, narrative.next_action
+        injection_codes = screen.injection_codes
+        approval_claims = [*screen.unsupported_claims, *screen.unsupported_figures]
 
         emitter.emit(
             EventType.INJECTION_ATTEMPT_DETECTED,
@@ -919,6 +928,62 @@ class Orchestrator:
         return self._deterministic_summary(state, outcome), self._deterministic_next_action(
             state, outcome
         )
+
+    @staticmethod
+    def _computed_values(state: RunState) -> list[str]:
+        """Every figure the engine computed, as text, for the grounding check.
+
+        Assembled from the calculation records, the exception records and the run's own
+        amounts rather than from a curated list, so a control added later contributes its
+        figures without anyone remembering to extend this. A figure absent from here and
+        present in the prose is one the model invented.
+        """
+        values: list[str] = []
+        request = state.request
+        values.extend([str(request.amount), request.currency, request.invoice_reference])
+        if request.net_amount is not None:
+            values.append(str(request.net_amount))
+        if request.tax_amount is not None:
+            values.append(str(request.tax_amount))
+        if request.invoice_date is not None:
+            values.append(request.invoice_date.isoformat())
+        if request.po_reference:
+            values.append(request.po_reference)
+        if state.payable_on is not None:
+            values.append(state.payable_on.isoformat())
+        if state.proposed_payment_run is not None:
+            values.append(state.proposed_payment_run.isoformat())
+        for calculation in state.calculations:
+            values.append(str(calculation.result))
+            values.extend(str(value) for value in calculation.inputs.values())
+        for exception in state.exceptions:
+            values.extend([exception.expected, exception.observed, exception.detail])
+        for record in state.invoice_history:
+            values.extend([record.record_id, record.invoice_reference, str(record.gross_amount)])
+        for line in request.lines:
+            values.extend([str(line.quantity), str(line.unit_price), str(line.line_total)])
+        # Identifiers, because they contain digit runs and the figure check cannot tell an
+        # approver reference from a fabricated amount. Naming the approver is exactly what a
+        # correct summary does, so leaving these out made the check flag good prose: a unit
+        # test on "the invoice has been approved by U-3081" caught it.
+        values.extend(
+            value
+            for value in (
+                request.vendor_id,
+                request.requested_by,
+                request.cost_centre,
+                state.run_id,
+                state.approval_id,
+            )
+            if value
+        )
+        if state.delegation is not None:
+            values.extend([state.delegation.delegation_id, state.delegation.delegate_id])
+        if state.vendor is not None:
+            values.append(state.vendor.vendor_id)
+        if state.purchase_order is not None:
+            values.append(state.purchase_order.po_reference)
+        return values
 
     @staticmethod
     def _deterministic_summary(state: RunState, outcome: Outcome) -> str:

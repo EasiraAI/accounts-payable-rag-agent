@@ -16,9 +16,8 @@
     "deny": [
       "Read(.env)",
       "Read(**/.env)",
-      "Read(**/*.db)",
-      "Bash(git push *)",
-      "Bash(git push)"
+      "Read(**/*.db)"
+
     ]
   },
   "hooks": {

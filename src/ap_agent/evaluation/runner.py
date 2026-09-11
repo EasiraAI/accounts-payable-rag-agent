@@ -66,6 +66,16 @@ class CaseResult(BaseModel):
     #: merely present in the corpus says nothing about this transaction. Reported separately
     #: so the two are never confused when reading a report.
     injection_events_corpus: int = 0
+    #: Whether the model's approver-facing prose survived screening. False means it asserted
+    #: an approval or an immediate payment the run's state did not support, or contained a
+    #: figure the engine never computed, and was replaced with a deterministic summary.
+    #:
+    #: This is the generation channel's quality measure. Retrieval has had metrics from the
+    #: start; the narrative had only constraints, and an audit was right that a constraint
+    #: without a number tells a reader nothing about whether it ever fires.
+    narrative_grounded: bool = True
+    #: Why it was screened, when it was. Empty on a clean narrative.
+    narrative_findings: list[str] = Field(default_factory=list)
     failures: list[str] = Field(default_factory=list)
     run_id: str = ""
 
@@ -87,6 +97,17 @@ class EvaluationReport(BaseModel):
     def all_passed(self) -> bool:
         return self.passed_count == self.case_count
 
+    @property
+    def grounded_count(self) -> int:
+        """Cases whose model-written prose survived screening.
+
+        Reported alongside the outcome result because they measure different things. A case can
+        pass on its control outcome while the narrative an approver would read gets discarded,
+        and that is worth seeing: the outcome is computed deterministically, so it says nothing
+        about the generation channel's quality.
+        """
+        return sum(1 for result in self.results if result.narrative_grounded)
+
     def table(self) -> str:
         """A fixed-width table for terminal output."""
         header = (
@@ -101,7 +122,8 @@ class EvaluationReport(BaseModel):
             for result in self.results
         ]
         summary = (
-            f"{self.passed_count}/{self.case_count} cases passed "
+            f"{self.passed_count}/{self.case_count} cases passed, "
+            f"{self.grounded_count}/{self.case_count} narratives grounded "
             f"(provider={self.provider}, model={self.model})"
         )
         detail: list[str] = []
@@ -213,6 +235,14 @@ def evaluate_case(
     )
 
     recommendation = final.recommendation
+    # The screen records a finding when it discards the model's prose. Read from the run's
+    # own findings rather than re-screening here, so the report describes what happened
+    # rather than what a second evaluation would have decided.
+    screened = [
+        finding.detail
+        for finding in final.policy_findings
+        if finding.rule == "model_narrative_screened"
+    ]
     result = CaseResult(
         case_id=case.case_id,
         intent=case.intent,
@@ -235,6 +265,8 @@ def evaluate_case(
         citation_count=len(recommendation.cited_evidence) if recommendation else 0,
         injection_events_case=injection_case,
         injection_events_corpus=injection_corpus,
+        narrative_grounded=not screened,
+        narrative_findings=screened,
         failures=failures,
         run_id=final.run_id,
     )

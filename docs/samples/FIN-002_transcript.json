@@ -2,7 +2,7 @@
   "case_id": "FIN-002",
   "intent": "Duplicate invoice. Invoice number and amount match an already-paid record. Expect REJECT_DUPLICATE with both record identifiers cited, and no proposal to pay.",
   "summary": {
-    "run_id": "run_ac18ec56d37b4e5b",
+    "run_id": "run_244434ad35ec4639",
     "case_id": "FIN-002",
     "status": "AWAITING_APPROVAL",
     "phase": "AWAITING_APPROVAL",
@@ -377,7 +377,7 @@
   },
   "final_result": {
     "case_id": "FIN-002",
-    "run_id": "run_ac18ec56d37b4e5b",
+    "run_id": "run_244434ad35ec4639",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -1152,7 +1152,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1164,7 +1164,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1453,7 +1453,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 10,
+      "duration_ms": 11,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1583,7 +1583,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 6,
+      "duration_ms": 7,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1769,7 +1769,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "ASSESS_RISK",
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 4,
       "payload": {
         "next_phase": "RECOMMEND",
         "steps_used": 5,
@@ -1825,7 +1825,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_5558af0a90af4b34",
+        "approval_id": "apr_9f846fcd63d14a44",
         "requested_outcome": "REJECT_DUPLICATE",
         "amount": "9240.00",
         "currency": "AUD",

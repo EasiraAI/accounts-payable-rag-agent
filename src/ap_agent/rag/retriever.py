@@ -40,7 +40,9 @@ from dataclasses import dataclass
 from typing import Final
 
 from ap_agent.domain.enums import DocumentStatus
+from ap_agent.domain.errors import IndexNotBuilt
 from ap_agent.domain.evidence import RetrievedChunk
+from ap_agent.rag.dense import DenseEncoder, cosine_scores, fuse_by_rank
 from ap_agent.rag.index import CorpusIndex
 from ap_agent.rag.ingest import (
     DOC_TYPE_EXTERNAL_UNVERIFIED,
@@ -88,16 +90,62 @@ class Retriever:
         *,
         superseded_score_factor: float = 0.3,
         default_top_k: int = 6,
+        dense_encoder: DenseEncoder | None = None,
     ) -> None:
         if not 0.0 <= superseded_score_factor <= 1.0:
             raise ValueError("superseded_score_factor must be between 0 and 1")
+        if dense_encoder is not None and not index.has_embeddings:
+            # Refuse rather than degrade. A retriever asked for hybrid ranking that quietly
+            # ranked lexically would reproduce the defect this parameter was added to fix: a
+            # configured mode that changes nothing and reports success.
+            raise IndexNotBuilt(
+                "hybrid retrieval was requested but the index carries no embeddings; "
+                "re-run `ap-agent ingest --force` with AP_RETRIEVAL_MODE=hybrid"
+            )
         self._index = index
         self._superseded_factor = superseded_score_factor
         self._default_top_k = default_top_k
+        self._dense = dense_encoder
 
     @property
     def index(self) -> CorpusIndex:
         return self._index
+
+    @property
+    def mode(self) -> str:
+        """What this retriever actually does, not what was configured.
+
+        Read by the manifest. The two can only agree if the dense side was really built, which
+        is the point: the previous version reported the configured mode and had no dense side
+        at all.
+        """
+        return "hybrid" if self._dense is not None else "bm25"
+
+    def _base_scores(self, query: str) -> list[tuple[Chunk, float, float]]:
+        """Per-chunk (chunk, lexical score, ranking score) before metadata adjustment.
+
+        In lexical mode the two scores are the same number. In hybrid mode the ranking score
+        is a reciprocal-rank fusion of the lexical and dense orderings, and chunks that
+        neither retriever nominated are dropped rather than carried at a low score. The
+        lexical score is still reported so a citation remains explainable in the terms the
+        rest of the system uses.
+        """
+        lexical = self._index.score(query)
+        if self._dense is None:
+            return [(chunk, score, score) for chunk, score in lexical]
+
+        query_vector = self._dense.encode([query], is_query=True)[0]
+        dense_scores = cosine_scores(query_vector, self._index.embeddings)
+
+        lexical_order = sorted(
+            range(len(lexical)), key=lambda i: (-lexical[i][1], lexical[i][0].document_id)
+        )
+        dense_order = sorted(
+            range(len(dense_scores)),
+            key=lambda i: (-dense_scores[i], lexical[i][0].document_id),
+        )
+        fused = fuse_by_rank(lexical_order, dense_order)
+        return [(lexical[i][0], lexical[i][1], score) for i, score in fused.items()]
 
     def _metadata_factor(self, chunk: Chunk) -> float:
         """Score multiplier derived from provenance rather than from text.
@@ -128,10 +176,10 @@ class Retriever:
         allowed = set(doc_types) if doc_types is not None else None
 
         scored: list[tuple[Chunk, float, float]] = []
-        for chunk, lexical in self._index.score(query):
+        for chunk, lexical, ranking in self._base_scores(query):
             if allowed is not None and chunk.doc_type not in allowed:
                 continue
-            adjusted = lexical * self._metadata_factor(chunk)
+            adjusted = ranking * self._metadata_factor(chunk)
             if adjusted <= MIN_RELEVANCE_SCORE:
                 continue
             scored.append((chunk, lexical, adjusted))

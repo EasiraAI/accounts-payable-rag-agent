@@ -24,6 +24,7 @@ from ap_agent.llm.base import LLMClient
 from ap_agent.observability.events import configure_logging
 from ap_agent.orchestration.machine import Orchestrator
 from ap_agent.persistence.repository import Repository
+from ap_agent.rag.dense import DenseEncoder
 from ap_agent.rag.index import CorpusIndex, load_or_build_index
 from ap_agent.rag.retriever import Retriever
 
@@ -57,7 +58,11 @@ class Application:
         return {
             "provider": self.llm_client.provider_name,
             "model": self.llm_client.model_name,
-            "retrieval_mode": self.settings.retrieval_mode,
+            # What the retriever actually does. Reporting the configured value was how a mode
+            # that reached no code path still appeared to be on.
+            "retrieval_mode": self.retriever.mode,
+            "configured_retrieval_mode": self.settings.retrieval_mode,
+            "embedding_model": self.retriever.index.embedding_model,
             "corpus_documents": self.index.document_count,
             "corpus_chunks": len(self.index),
             "corpus_hash": self.index.corpus_hash[:16],
@@ -94,11 +99,17 @@ def build_application(
         configure_logging(level=resolved.log_level, json_format=resolved.log_format == "json")
 
     repository = Repository(resolved.db_path)
-    index = load_or_build_index(resolved.corpus_dir, resolved.index_dir)
+    # The dense side is built only when the configured mode asks for it, and the index is
+    # then rebuilt if it carries no embeddings for that model. Before this, the mode was a
+    # settings value that reached nothing: it validated, it appeared in the manifest, and the
+    # retriever never saw it.
+    encoder = DenseEncoder() if resolved.retrieval_mode == "hybrid" else None
+    index = load_or_build_index(resolved.corpus_dir, resolved.index_dir, encoder=encoder)
     retriever = Retriever(
         index,
         superseded_score_factor=resolved.superseded_score_factor,
         default_top_k=resolved.retrieval_top_k,
+        dense_encoder=encoder,
     )
     client = llm_client or build_llm_client(resolved)
     orchestrator = Orchestrator(

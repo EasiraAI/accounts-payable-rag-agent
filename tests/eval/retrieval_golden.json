@@ -1,105 +1,265 @@
 {
-  "description": "Golden retrieval set for the Northstar AP policy corpus. Each query is one a processing run actually issues, phrased the way a finance analyst would ask it rather than copied from the target section, so the set measures retrieval and not string equality. 'accept' lists every section that answers the query; a hit is any of them.",
+  "description": "Golden retrieval set for the Northstar AP policy corpus. Three kinds of query, measured separately. 'direct' uses the corpus's own vocabulary and carries the gate. 'paraphrase' asks the same questions in a finance analyst's words, deliberately avoiding the section's terms, because paraphrase recall is the declared weakness of a lexical index and a set that never probes it cannot fail for the reason the retriever actually fails. 'negative' queries are questions this corpus cannot answer. 'accept' lists every section that answers the query; a hit is any of them, and a negative query names none.",
   "notes": [
-    "Hit@3 and MRR are the operative metrics. Hit@1 is reported but is not the gate: the agent consumes a top-k window, not a single chunk, so a target at rank 2 with the authority section also present is a successful retrieval for this architecture.",
-    "The two safety assertions are absolute rather than statistical: the distractor must never appear in a policy result, and the current authority matrix must always outrank the superseded one."
+    "Hit@3 and MRR are the operative metrics and cover the direct queries only, so the gated numbers keep their meaning across changes. Hit@1 is reported but not gated: the agent consumes a top-k window, not a single chunk.",
+    "Paraphrase recall is reported with its own much lower gate. At the time of writing four of the eight paraphrase queries miss the answering section entirely, which is the measured cost of choosing a lexical index and the number that would justify enabling hybrid retrieval.",
+    "The two safety assertions are absolute rather than statistical: the distractor must never appear in a policy result, and the current authority matrix must always outrank the superseded one.",
+    "The negative queries also refute a score floor. The highest scoring unanswerable query outscores the lowest scoring answerable one, so no minimum-score cutoff could separate them; the report states both figures."
   ],
   "queries": [
     {
       "id": "Q01",
       "text": "goods line price variance tolerance limit",
-      "accept": ["FIN-POL-002 §2"],
-      "purpose": "three-way match tolerance band"
+      "accept": [
+        "FIN-POL-002 §2"
+      ],
+      "purpose": "three-way match tolerance band",
+      "kind": "direct"
     },
     {
       "id": "Q02",
       "text": "what is the maximum amount a department director may approve",
-      "accept": ["FIN-POL-003 §2"],
-      "purpose": "delegated authority limit"
+      "accept": [
+        "FIN-POL-003 §2"
+      ],
+      "purpose": "delegated authority limit",
+      "kind": "direct"
     },
     {
       "id": "Q03",
       "text": "how are exact duplicate invoices matched against history",
-      "accept": ["FIN-POL-005 §1"],
-      "purpose": "duplicate detection fields"
+      "accept": [
+        "FIN-POL-005 §1"
+      ],
+      "purpose": "duplicate detection fields",
+      "kind": "direct"
     },
     {
       "id": "Q04",
       "text": "verifying a supplier request to change bank account details",
-      "accept": ["FIN-POL-004 §2"],
-      "purpose": "bank change verification"
+      "accept": [
+        "FIN-POL-004 §2"
+      ],
+      "purpose": "bank change verification",
+      "kind": "direct"
     },
     {
       "id": "Q05",
       "text": "invoice received but no goods receipt recorded",
-      "accept": ["FIN-POL-002 §4"],
-      "purpose": "missing receipt handling"
+      "accept": [
+        "FIN-POL-002 §4"
+      ],
+      "purpose": "missing receipt handling",
+      "kind": "direct"
     },
     {
       "id": "Q06",
       "text": "which exception category should be used for an invoice problem",
-      "accept": ["FIN-POL-007 §1"],
-      "purpose": "exception taxonomy"
+      "accept": [
+        "FIN-POL-007 §1"
+      ],
+      "purpose": "exception taxonomy",
+      "kind": "direct"
     },
     {
       "id": "Q07",
       "text": "converting a foreign currency invoice using the corporate daily rate",
-      "accept": ["FIN-POL-009 §2"],
-      "purpose": "FX conversion and rate citation"
+      "accept": [
+        "FIN-POL-009 §2"
+      ],
+      "purpose": "FX conversion and rate citation",
+      "kind": "direct"
     },
     {
       "id": "Q08",
       "text": "standard supplier payment terms and when payment runs happen",
-      "accept": ["FIN-POL-006 §1", "FIN-POL-006 §2"],
-      "purpose": "payment terms and scheduling"
+      "accept": [
+        "FIN-POL-006 §1",
+        "FIN-POL-006 §2"
+      ],
+      "purpose": "payment terms and scheduling",
+      "kind": "direct"
     },
     {
       "id": "Q09",
       "text": "approval needed for an emergency purchase with no purchase order",
-      "accept": ["FIN-POL-012 §3", "FIN-POL-012 §2"],
-      "purpose": "non-PO and emergency approval"
+      "accept": [
+        "FIN-POL-012 §3",
+        "FIN-POL-012 §2"
+      ],
+      "purpose": "non-PO and emergency approval",
+      "kind": "direct"
     },
     {
       "id": "Q10",
       "text": "masking bank details and personal data in application logs",
-      "accept": ["FIN-POL-010 §2"],
-      "purpose": "safe logging"
+      "accept": [
+        "FIN-POL-010 §2"
+      ],
+      "purpose": "safe logging",
+      "kind": "direct"
     },
     {
       "id": "Q11",
       "text": "segregation of duties between creating a vendor and approving its invoice",
-      "accept": ["FIN-POL-001 §4"],
-      "purpose": "segregation of duties"
+      "accept": [
+        "FIN-POL-001 §4"
+      ],
+      "purpose": "segregation of duties",
+      "kind": "direct"
     },
     {
       "id": "Q12",
       "text": "evidence required before posting a month end accrual",
-      "accept": ["FIN-POL-011 §2"],
-      "purpose": "accrual evidence"
+      "accept": [
+        "FIN-POL-011 §2"
+      ],
+      "purpose": "accrual evidence",
+      "kind": "direct"
     },
     {
       "id": "Q13",
       "text": "applying a credit note against an open invoice for the same vendor",
-      "accept": ["FIN-POL-008 §2"],
-      "purpose": "credit note application order"
+      "accept": [
+        "FIN-POL-008 §2"
+      ],
+      "purpose": "credit note application order",
+      "kind": "direct"
     },
     {
       "id": "Q14",
       "text": "when are two approvals required for a higher risk payment",
-      "accept": ["FIN-POL-003 §3"],
-      "purpose": "dual approval triggers"
+      "accept": [
+        "FIN-POL-003 §3"
+      ],
+      "purpose": "dual approval triggers",
+      "kind": "direct"
     },
     {
       "id": "Q15",
       "text": "rounding method and stored inputs for a tolerance calculation",
-      "accept": ["FIN-POL-002 §5"],
-      "purpose": "calculation record requirements"
+      "accept": [
+        "FIN-POL-002 §5"
+      ],
+      "purpose": "calculation record requirements",
+      "kind": "direct"
     },
     {
       "id": "Q16",
       "text": "vendor status values that require an invoice to be held",
-      "accept": ["FIN-POL-004 §4"],
-      "purpose": "vendor status handling"
+      "accept": [
+        "FIN-POL-004 §4"
+      ],
+      "purpose": "vendor status handling",
+      "kind": "direct"
+    },
+    {
+      "id": "P01",
+      "text": "how much can a head of department sign off on their own",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-003 §2"
+      ],
+      "purpose": "authority limit, asked without the words delegated, authority or approve"
+    },
+    {
+      "id": "P02",
+      "text": "supplier says their banking instructions changed, what proof do we need",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-004 §2"
+      ],
+      "purpose": "bank change verification, asked without the word verification"
+    },
+    {
+      "id": "P03",
+      "text": "the same bill turned up twice for the same value",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-005 §1"
+      ],
+      "purpose": "duplicate detection, asked with bill rather than invoice"
+    },
+    {
+      "id": "P04",
+      "text": "we never logged the delivery, can the bill still be paid",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-002 §4"
+      ],
+      "purpose": "missing receipt, asked without the word receipt"
+    },
+    {
+      "id": "P05",
+      "text": "is there a deadline to get a supplier bill into this month's books",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-011 §1"
+      ],
+      "purpose": "month-end cut-off, asked without the words accrual or close"
+    },
+    {
+      "id": "P06",
+      "text": "can we settle a bill ahead of time to take a discount",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-006 §3"
+      ],
+      "purpose": "early payment, asked without the words early payment"
+    },
+    {
+      "id": "P07",
+      "text": "signs that a payment request might be fraudulent",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-005 §3"
+      ],
+      "purpose": "fraud indicators, asked without the word indicator"
+    },
+    {
+      "id": "P08",
+      "text": "who signs off when nobody raised an order first",
+      "kind": "paraphrase",
+      "accept": [
+        "FIN-POL-012 §3",
+        "FIN-POL-012 §2"
+      ],
+      "purpose": "non-PO approval, asked without the words purchase order or emergency"
+    },
+    {
+      "id": "N01",
+      "text": "how many annual leave days do casual staff accrue",
+      "kind": "negative",
+      "accept": [],
+      "purpose": "human-resources question; the AP corpus cannot answer it"
+    },
+    {
+      "id": "N02",
+      "text": "what mileage rate applies when using a personal car",
+      "kind": "negative",
+      "accept": [],
+      "purpose": "travel expenses. The distractor ADV-002 is a travel policy, so this is the query most likely to surface it; it must not"
+    },
+    {
+      "id": "N03",
+      "text": "which health insurance provider does the company use",
+      "kind": "negative",
+      "accept": [],
+      "purpose": "employee benefits; outside the corpus"
+    },
+    {
+      "id": "N04",
+      "text": "what is the office wifi password",
+      "kind": "negative",
+      "accept": [],
+      "purpose": "no plausible match anywhere in the corpus"
+    },
+    {
+      "id": "N05",
+      "text": "notice period for resigning from a permanent role",
+      "kind": "negative",
+      "accept": [],
+      "purpose": "employment terms; outside the corpus"
     }
   ]
 }

@@ -1053,3 +1053,58 @@ class TestThePaymentScheduleComesFromTheEngine:
         state = orchestrator.start(_case("FIN-004"))
         assert state.recommendation is not None
         assert "Proposed payment run" not in state.recommendation.next_action
+
+
+class TestNarrativeGroundingIsMeasuredNotAssumed:
+    """The generation channel now has a number, and the number has to be able to move.
+
+    An audit's finding: retrieval was measured and generation was only constrained, so nothing
+    reported whether the narrative screen ever fired or whether the prose an approver reads is
+    faithful to the evidence. The evaluation report now carries `narrative_grounded` per case
+    and an aggregate beside the outcome result.
+
+    A measure that cannot fail is decoration, so these assert both directions: clean prose
+    reports grounded, and a hostile model reports ungrounded with a reason.
+    """
+
+    def test_a_clean_run_reports_a_grounded_narrative(
+        self, settings, repository, retriever
+    ) -> None:
+        orchestrator = _orchestrator(settings, repository, retriever)
+        state = orchestrator.start(_case("FIN-001"))
+        assert not any(
+            finding.rule == "model_narrative_screened" for finding in state.policy_findings
+        )
+
+    def test_a_hostile_narrative_is_recorded_as_ungrounded(
+        self, settings, repository, retriever
+    ) -> None:
+        orchestrator = _orchestrator(settings, repository, retriever, fault="hostile_narrative")
+        state = orchestrator.start(_case("FIN-002"))
+        screened = [
+            finding
+            for finding in state.policy_findings
+            if finding.rule == "model_narrative_screened"
+        ]
+        assert screened, "the screen must fire on prose asserting an approval that never happened"
+        assert screened[0].detail
+
+    def test_the_hostile_prose_never_reaches_the_recommendation(
+        self, settings, repository, retriever
+    ) -> None:
+        """Discarded, not annotated. The prose is what an approver reads."""
+        orchestrator = _orchestrator(settings, repository, retriever, fault="hostile_narrative")
+        state = orchestrator.start(_case("FIN-002"))
+        assert state.recommendation is not None
+        prose = f"{state.recommendation.summary}\n{state.recommendation.next_action}".lower()
+        assert "out of band" not in prose
+        assert "system error" not in prose
+
+    def test_the_computed_outcome_is_unaffected_by_the_prose(
+        self, settings, repository, retriever
+    ) -> None:
+        """The outcome comes from the rule engine, so a hostile narrative cannot move it."""
+        orchestrator = _orchestrator(settings, repository, retriever, fault="hostile_narrative")
+        state = orchestrator.start(_case("FIN-002"))
+        assert state.recommendation is not None
+        assert state.recommendation.outcome.value == "REJECT_DUPLICATE"

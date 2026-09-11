@@ -38,6 +38,7 @@ from typing import Final
 from rank_bm25 import BM25Okapi
 
 from ap_agent.domain.errors import IndexNotBuilt
+from ap_agent.rag.dense import DenseEncoder
 from ap_agent.rag.ingest import Chunk, IngestedCorpus, ingest_corpus
 
 #: Tokens shorter than this carry no retrieval signal and inflate the vocabulary.
@@ -200,15 +201,31 @@ class CorpusIndex:
     """
 
     _INDEX_FILENAME = "corpus_index.json"
-    _FORMAT_VERSION = 1
+    # Version 2 adds the optional embedding block. The load path refuses a mismatch and the
+    # ingest command rebuilds, so an index written by an older build is replaced rather than
+    # read with the wrong shape.
+    _FORMAT_VERSION = 2
 
-    def __init__(self, corpus: IngestedCorpus) -> None:
+    def __init__(
+        self,
+        corpus: IngestedCorpus,
+        *,
+        embeddings: list[list[float]] | None = None,
+        embedding_model: str | None = None,
+    ) -> None:
         self._corpus = corpus
         self._chunks = corpus.chunks
         if not self._chunks:
             raise ValueError("cannot build an index over an empty corpus")
+        if embeddings is not None and len(embeddings) != len(self._chunks):
+            raise ValueError(
+                f"index has {len(self._chunks)} chunks but {len(embeddings)} embeddings; "
+                "re-run ingest"
+            )
         self._tokenized = [tokenize(chunk.text) for chunk in self._chunks]
         self._bm25 = BM25Okapi(self._tokenized)
+        self._embeddings = embeddings
+        self._embedding_model = embedding_model
 
     # ---- properties ------------------------------------------------------------------
 
@@ -223,6 +240,29 @@ class CorpusIndex:
     @property
     def document_count(self) -> int:
         return self._corpus.document_count
+
+    @property
+    def has_embeddings(self) -> bool:
+        return self._embeddings is not None
+
+    @property
+    def embedding_model(self) -> str | None:
+        return self._embedding_model
+
+    @property
+    def embeddings(self) -> list[list[float]]:
+        """The document matrix, in chunk order.
+
+        Raises rather than returning an empty list when absent: an empty matrix would make
+        every similarity zero and turn a missing-embedding bug into a silently lexical-only
+        ranking, which is the exact failure this whole change exists to correct.
+        """
+        if self._embeddings is None:
+            raise IndexNotBuilt(
+                "this index carries no embeddings; re-run `ap-agent ingest --force` with "
+                "AP_RETRIEVAL_MODE=hybrid"
+            )
+        return self._embeddings
 
     def __len__(self) -> int:
         return len(self._chunks)
@@ -279,13 +319,21 @@ class CorpusIndex:
     def save(self, index_dir: Path) -> Path:
         index_dir.mkdir(parents=True, exist_ok=True)
         path = index_dir / self._INDEX_FILENAME
-        payload = {
+        payload: dict[str, object] = {
             "format_version": self._FORMAT_VERSION,
             "corpus_hash": self._corpus.corpus_hash,
             "document_count": self._corpus.document_count,
             "source_dir": self._corpus.source_dir,
             "chunks": [chunk.model_dump(mode="json") for chunk in self._chunks],
         }
+        if self._embeddings is not None:
+            # Rounded to six places, which is well inside the precision that matters for a
+            # cosine similarity and keeps the file readable. Still JSON, not a pickle: an
+            # index file travels between environments, and a pickle is executable content.
+            payload["embedding_model"] = self._embedding_model
+            payload["embeddings"] = [
+                [round(value, 6) for value in vector] for vector in self._embeddings
+            ]
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return path
 
@@ -306,17 +354,34 @@ class CorpusIndex:
             document_count=payload["document_count"],
             source_dir=payload["source_dir"],
         )
-        return cls(corpus)
+        raw = payload.get("embeddings")
+        embeddings = (
+            [[float(value) for value in vector] for vector in raw] if raw is not None else None
+        )
+        return cls(
+            corpus,
+            embeddings=embeddings,
+            embedding_model=payload.get("embedding_model"),
+        )
 
 
 def build_index(
-    corpus_dir: Path, index_dir: Path, *, force: bool = False
+    corpus_dir: Path,
+    index_dir: Path,
+    *,
+    force: bool = False,
+    encoder: DenseEncoder | None = None,
 ) -> tuple[CorpusIndex, bool]:
     """Ingest and index a corpus, skipping the work when nothing changed.
 
     Returns the index and whether it was rebuilt. Idempotence matters operationally: the
-    ingest command is safe to run on every start, and re-running it does not silently
-    produce a different index from the same source.
+    ingest command is safe to run on every start, and re-running it does not silently produce
+    a different index from the same source.
+
+    ``encoder`` adds the dense side. An existing index is reused only if it also matches on
+    embeddings: the same corpus indexed without them is *stale* for a hybrid deployment, and
+    treating it as current is what would let the mode fall back to lexical ranking without
+    saying so.
     """
     corpus = ingest_corpus(corpus_dir)
     if not force:
@@ -324,14 +389,28 @@ def build_index(
             existing = CorpusIndex.load(index_dir)
         except IndexNotBuilt:
             existing = None
-        if existing is not None and existing.corpus_hash == corpus.corpus_hash:
+        fresh = (
+            existing is not None
+            and existing.corpus_hash == corpus.corpus_hash
+            and (encoder is None or existing.embedding_model == encoder.model_name)
+        )
+        if fresh and existing is not None:
             return existing, False
-    index = CorpusIndex(corpus)
+    embeddings = (
+        encoder.encode([chunk.text for chunk in corpus.chunks]) if encoder is not None else None
+    )
+    index = CorpusIndex(
+        corpus,
+        embeddings=embeddings,
+        embedding_model=encoder.model_name if encoder is not None else None,
+    )
     index.save(index_dir)
     return index, True
 
 
-def load_or_build_index(corpus_dir: Path, index_dir: Path) -> CorpusIndex:
+def load_or_build_index(
+    corpus_dir: Path, index_dir: Path, *, encoder: DenseEncoder | None = None
+) -> CorpusIndex:
     """Load the index, building it first if it is absent or stale."""
-    index, _ = build_index(corpus_dir, index_dir)
+    index, _ = build_index(corpus_dir, index_dir, encoder=encoder)
     return index

@@ -7,6 +7,11 @@ how, and what was done to make the result trustworthy, because a declaration tha
 It is the only document in this repository that discusses the authoring process. Everything
 else describes the system.
 
+**Time spent: about 5 hours** against the brief's 8-hour timebox. The git history runs from
+11:22 to 15:33 on 11 September 2026; reading the corpus and planning the design came before the
+first commit. The assistance is the reason that number is what it is, which is the honest way
+to read both figures together.
+
 ## Scope
 
 AI assistance was used across the whole of the work: reading the policy corpus, weighing the
@@ -78,7 +83,7 @@ qualifying payment run, the two integrity checks that no clause prescribes — t
 documentation say so.
 
 Responsibility for what is in this repository, including its remaining limitations, rests with
-me as its author. The known ones are listed in [README §12](../README.md) and the work I would
+me as its author. The known ones are listed in [README §10](../README.md) and the work I would
 do next is in [RECOMMENDATIONS.md](RECOMMENDATIONS.md), in the order I would do it.
 
 ## Tooling

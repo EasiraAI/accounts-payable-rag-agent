@@ -19,6 +19,7 @@ from ap_agent.evaluation.retrieval import (
     DISTRACTOR_DOCUMENT_ID,
     MIN_HIT_AT_3,
     MIN_MRR,
+    MIN_PARAPHRASE_HIT_AT_3,
     SUPERSEDED_AUTHORITY_ID,
     evaluate_retrieval,
     load_golden_set,
@@ -336,12 +337,52 @@ class TestGoldenSet:
         assert report.safety_checks_passed, report.summary_line()
         assert report.gates_passed, report.summary_line()
 
-    def test_every_golden_query_retrieves_its_target_within_three(
+    def test_every_direct_query_retrieves_its_target_within_three(
         self, retriever: Retriever
     ) -> None:
+        """Scoped to the direct queries, which is where a miss is a regression.
+
+        This assertion used to cover the whole set, because the whole set was phrased in the
+        corpus's own vocabulary. Paraphrase queries were then added precisely because that
+        made the set unable to fail for the reason a lexical index actually fails, and four of
+        the eight miss today. Keeping them under this assertion would have meant either
+        deleting the queries or disabling the check; both would have hidden the number.
+        """
         report = evaluate_retrieval(retriever, load_golden_set(GOLDEN_PATH), top_k=6)
-        misses = [outcome.query_id for outcome in report.outcomes if not outcome.hit_at_3]
-        assert misses == [], f"queries missing their target in the top 3: {misses}"
+        misses = [
+            outcome.query_id
+            for outcome in report.outcomes
+            if outcome.kind == "direct" and not outcome.hit_at_3
+        ]
+        assert misses == [], f"direct queries missing their target in the top 3: {misses}"
+
+    def test_paraphrase_recall_is_measured_and_gated(self, retriever: Retriever) -> None:
+        """The declared weakness of a lexical index, reported as a number rather than a note."""
+        report = evaluate_retrieval(retriever, load_golden_set(GOLDEN_PATH), top_k=6)
+        assert report.paraphrase_count >= 8, "the paraphrase set must be large enough to move"
+        assert report.paraphrase_hit_at_3 >= MIN_PARAPHRASE_HIT_AT_3
+
+    def test_unanswerable_queries_never_surface_the_distractor(self, retriever: Retriever) -> None:
+        """The query most likely to pull in the travel-policy distractor is a mileage question."""
+        report = evaluate_retrieval(retriever, load_golden_set(GOLDEN_PATH), top_k=6)
+        assert report.negative_count >= 5
+        assert report.distractor_leaks == []
+
+    def test_a_score_floor_cannot_separate_answerable_from_unanswerable(
+        self, retriever: Retriever
+    ) -> None:
+        """Recorded as a test because it is the obvious next idea, and it does not work.
+
+        The highest scoring unanswerable query outscores the lowest scoring answerable one, so
+        any cutoff that silenced the first would silence the second. If a corpus or tokenizer
+        change ever made a floor viable, this test fails and the option is worth revisiting.
+        """
+        report = evaluate_retrieval(retriever, load_golden_set(GOLDEN_PATH), top_k=6)
+        assert not report.score_floor_separable, (
+            "a score floor now looks separable: answerable min "
+            f"{report.answerable_min_top_score}, unanswerable max "
+            f"{report.negative_max_top_score}"
+        )
 
     def test_every_returned_chunk_carries_full_citation_metadata(
         self, retriever: Retriever

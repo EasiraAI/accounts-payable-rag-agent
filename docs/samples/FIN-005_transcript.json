@@ -2,7 +2,7 @@
   "case_id": "FIN-005",
   "intent": "Duplicate approval. The same approval callback is delivered twice. Expect exactly one effective decision, identical response bodies, the second flagged as a replay.",
   "summary": {
-    "run_id": "run_a4c9473ae4ef425b",
+    "run_id": "run_814c9f8910fc415c",
     "case_id": "FIN-005",
     "status": "COMPLETED",
     "phase": "COMPLETED",
@@ -12,7 +12,7 @@
     "exceptions": [],
     "indicators": [],
     "unknowns": 0,
-    "decision_ref": "DEC-CF68CAE94B68",
+    "decision_ref": "DEC-8B2582B86D01",
     "failure_reason": null
   },
   "request": {
@@ -343,7 +343,7 @@
   },
   "final_result": {
     "case_id": "FIN-005",
-    "run_id": "run_a4c9473ae4ef425b",
+    "run_id": "run_814c9f8910fc415c",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -729,11 +729,11 @@
       {
         "action": "RECORD_APPROVE_FOR_POSTING",
         "target": "SIMULATED_ERP",
-        "performed_at": "2026-09-11T05:13:42.022906Z",
-        "reference": "DEC-CF68CAE94B68",
-        "idempotency_key": "cf68cae94b68aa01adc62cf93e221dd05a02d5e9cb3b5316b4b7a6b5e16d05b3",
+        "performed_at": "2026-09-11T08:12:44.496809Z",
+        "reference": "DEC-8B2582B86D01",
+        "idempotency_key": "8b2582b86d0114e47bb4863f5375ca004623cc6e86a577de31051670c04dcc32",
         "simulated": true,
-        "detail": "Authorised by U-7781 (COST_CENTRE_MANAGER); approval apr_479613c0212b459a was granted by U-7781 (COST_CENTRE_MANAGER) for APPROVE_FOR_POSTING"
+        "detail": "Authorised by U-7781 (COST_CENTRE_MANAGER); approval apr_ab2f02e7a9184b4f was granted by U-7781 (COST_CENTRE_MANAGER) for APPROVE_FOR_POSTING"
       }
     ],
     "recommendation": {
@@ -1035,17 +1035,17 @@
       "second_approval_reason": ""
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T05:13:42.024434Z"
+    "completed_at": "2026-09-11T08:12:44.498467Z"
   },
   "decision": {
-    "decision_ref": "DEC-CF68CAE94B68",
-    "run_id": "run_a4c9473ae4ef425b",
+    "decision_ref": "DEC-8B2582B86D01",
+    "run_id": "run_814c9f8910fc415c",
     "case_id": "FIN-005",
     "outcome": "APPROVE_FOR_POSTING",
     "amount": "11000.00",
     "currency": "AUD",
-    "idempotency_key": "cf68cae94b68aa01adc62cf93e221dd05a02d5e9cb3b5316b4b7a6b5e16d05b3",
-    "recorded_at": "2026-09-11T05:13:42.022906Z",
+    "idempotency_key": "8b2582b86d0114e47bb4863f5375ca004623cc6e86a577de31051670c04dcc32",
+    "recorded_at": "2026-09-11T08:12:44.496809Z",
     "simulated": true,
     "replayed": false,
     "posting_system": "SIMULATED_ERP"
@@ -1405,7 +1405,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 9,
+      "duration_ms": 10,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1666,7 +1666,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_479613c0212b459a",
+        "approval_id": "apr_ab2f02e7a9184b4f",
         "requested_outcome": "APPROVE_FOR_POSTING",
         "amount": "11000.00",
         "currency": "AUD",
@@ -1706,7 +1706,7 @@
       "outcome": "APPROVED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_479613c0212b459a",
+        "approval_id": "apr_ab2f02e7a9184b4f",
         "decision": "APPROVED",
         "approver_id": "U-7781",
         "approver_role": "COST_CENTRE_MANAGER",
@@ -1735,7 +1735,7 @@
       "outcome": "RECORDED",
       "duration_ms": 0,
       "payload": {
-        "decision_ref": "DEC-CF68CAE94B68",
+        "decision_ref": "DEC-8B2582B86D01",
         "outcome": "APPROVE_FOR_POSTING",
         "amount": "11000.00",
         "currency": "AUD",
@@ -1770,7 +1770,7 @@
         "exception_count": 0,
         "unknown_count": 0,
         "action_count": 1,
-        "decision_ref": "DEC-CF68CAE94B68"
+        "decision_ref": "DEC-8B2582B86D01"
       }
     },
     {
@@ -1780,7 +1780,7 @@
       "outcome": "REPLAYED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_479613c0212b459a",
+        "approval_id": "apr_ab2f02e7a9184b4f",
         "status": "APPROVED",
         "approver_id": "U-7781",
         "signatures_collected": 1,

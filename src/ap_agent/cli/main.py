@@ -27,6 +27,7 @@ from ap_agent.evaluation.retrieval import evaluate_retrieval, load_golden_set
 from ap_agent.evaluation.runner import run_evaluation
 from ap_agent.llm import build_llm_client
 from ap_agent.orchestration.machine import build_final_result, summarise_run
+from ap_agent.rag.dense import DenseEncoder
 from ap_agent.rag.index import build_index
 from ap_agent.tools.base import describe_tools
 from ap_agent.tools.contracts import ALL_TOOL_SPECS
@@ -71,11 +72,19 @@ def ingest(
     so this is safe to run on every start.
     """
     settings = get_settings()
-    index, rebuilt = build_index(settings.corpus_dir, settings.index_dir, force=force)
+    # In hybrid mode the index has to carry embeddings, so ingest is where they are built:
+    # the retriever refuses to rank hybrid against an index without them rather than falling
+    # back to lexical scoring silently.
+    encoder = DenseEncoder() if settings.retrieval_mode == "hybrid" else None
+    index, rebuilt = build_index(
+        settings.corpus_dir, settings.index_dir, force=force, encoder=encoder
+    )
     typer.echo(
         f"{'rebuilt' if rebuilt else 'up to date'}: {index.document_count} document(s), "
         f"{len(index)} chunk(s), corpus hash {index.corpus_hash[:16]}"
     )
+    if index.embedding_model:
+        typer.echo(f"embeddings: {index.embedding_model}, {len(index.embeddings[0])} dimensions")
     typer.echo(f"index directory: {settings.index_dir}")
 
 

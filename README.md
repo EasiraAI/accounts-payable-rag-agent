@@ -16,8 +16,11 @@ path. Posting targets a simulated ledger and every receipt is stamped `simulated
 | Retrieval | Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 golden queries, 0 leaks |
 | Types / lint | mypy strict clean, 57 modules; ruff clean |
 | Corpus | 15 documents, 58 section chunks |
+| Time spent | About 5 hours against an 8-hour timebox. The git history spans 11:22 to 15:33 on 11 September 2026; reading the corpus and planning came before the first commit |
 
-Reproduce: `ap-agent eval`. Output: [docs/samples/eval_report.json](docs/samples/eval_report.json).
+Counts produced on Windows 11, Python 3.14.3, 11 September 2026. Reproduce with `ap-agent eval`
+and `uv run pytest -q -m "not live_model"`; the committed output is
+[docs/samples/eval_report.json](docs/samples/eval_report.json).
 
 ---
 

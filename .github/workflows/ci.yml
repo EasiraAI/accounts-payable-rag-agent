@@ -1,0 +1,73 @@
+# The quality gates, enforced rather than merely available.
+#
+# Every step here is a command the README documents, run in the same order a reviewer would
+# run them. Nothing in this workflow needs a secret or a network call beyond installing the
+# locked dependency set: the deterministic model adapter is what the first three tiers use, so
+# the whole gate is reproducible in a fork with no configuration.
+#
+# The live-model tier is deliberately absent. It needs a provider key and costs money per run,
+# and a gate that cannot run on a pull request from a fork is not a gate.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install the locked dependency set
+        run: uv sync --frozen
+        # --frozen fails if uv.lock and pyproject.toml disagree, so a dependency added without
+        # relocking breaks the build here rather than drifting silently.
+
+      - name: Lint
+        run: uv run ruff check src tests scripts
+
+      - name: Format check
+        run: uv run ruff format --check src tests scripts
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Unit and contract tiers
+        run: uv run pytest tests/unit tests/contract -q
+
+      - name: Evaluation tier
+        run: uv run pytest tests/eval -q -m "not live_model"
+
+      - name: Fixture cases and quality gates
+        run: uv run ap-agent eval
+        # Exits non-zero if any of the five cases fails, if a retrieval gate is missed, or if
+        # the generation gates fail. This is the step that would catch a control regression
+        # that still type-checks and still passes its unit tests.
+
+      - name: Credential sweep
+        run: uv run python scripts/secret_sweep.py
+
+      - name: Upload the evaluation report
+        if: always()
+        run: uv run ap-agent eval --report eval_report.json || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-report
+          path: eval_report.json
+          if-no-files-found: warn

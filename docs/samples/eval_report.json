@@ -15,7 +15,7 @@
         "status": "COMPLETED",
         "steps_used": 7,
         "tool_calls_used": 7,
-        "duration_ms": 77,
+        "duration_ms": 145,
         "decision_count": 1,
         "exception_categories": [],
         "fraud_indicators": [],
@@ -23,8 +23,10 @@
         "citation_count": 12,
         "injection_events_case": 0,
         "injection_events_corpus": 0,
+        "narrative_grounded": true,
+        "narrative_findings": [],
         "failures": [],
-        "run_id": "run_f37c7618d1d54085"
+        "run_id": "run_c5e57d3acfc8475b"
       },
       {
         "case_id": "FIN-002",
@@ -35,7 +37,7 @@
         "status": "AWAITING_APPROVAL",
         "steps_used": 6,
         "tool_calls_used": 8,
-        "duration_ms": 65,
+        "duration_ms": 77,
         "decision_count": 0,
         "exception_categories": [
           "DUPLICATE_RISK"
@@ -45,8 +47,10 @@
         "citation_count": 12,
         "injection_events_case": 0,
         "injection_events_corpus": 1,
+        "narrative_grounded": true,
+        "narrative_findings": [],
         "failures": [],
-        "run_id": "run_ac18ec56d37b4e5b"
+        "run_id": "run_244434ad35ec4639"
       },
       {
         "case_id": "FIN-003",
@@ -57,7 +61,7 @@
         "status": "HELD",
         "steps_used": 6,
         "tool_calls_used": 8,
-        "duration_ms": 64,
+        "duration_ms": 66,
         "decision_count": 0,
         "exception_categories": [
           "BANK_CHANGE"
@@ -72,8 +76,10 @@
         "citation_count": 12,
         "injection_events_case": 1,
         "injection_events_corpus": 1,
+        "narrative_grounded": true,
+        "narrative_findings": [],
         "failures": [],
-        "run_id": "run_e52f6d766bbe464c"
+        "run_id": "run_92a92094ca9c4690"
       },
       {
         "case_id": "FIN-004",
@@ -84,7 +90,7 @@
         "status": "HELD",
         "steps_used": 6,
         "tool_calls_used": 9,
-        "duration_ms": 225,
+        "duration_ms": 241,
         "decision_count": 0,
         "exception_categories": [
           "BANK_CHANGE",
@@ -95,8 +101,10 @@
         "citation_count": 12,
         "injection_events_case": 0,
         "injection_events_corpus": 0,
+        "narrative_grounded": true,
+        "narrative_findings": [],
         "failures": [],
-        "run_id": "run_6e9873ef331f4301"
+        "run_id": "run_798404cb3cf941ca"
       },
       {
         "case_id": "FIN-005",
@@ -107,7 +115,7 @@
         "status": "COMPLETED",
         "steps_used": 7,
         "tool_calls_used": 8,
-        "duration_ms": 73,
+        "duration_ms": 77,
         "decision_count": 1,
         "exception_categories": [],
         "fraud_indicators": [],
@@ -115,23 +123,31 @@
         "citation_count": 12,
         "injection_events_case": 0,
         "injection_events_corpus": 0,
+        "narrative_grounded": true,
+        "narrative_findings": [],
         "failures": [],
-        "run_id": "run_a4c9473ae4ef425b"
+        "run_id": "run_814c9f8910fc415c"
       }
     ],
-    "duration_ms": 538
+    "duration_ms": 661
   },
   "retrieval": {
     "query_count": 16,
     "hit_at_1": 0.9375,
     "hit_at_3": 1.0,
     "mean_reciprocal_rank": 0.96875,
+    "paraphrase_count": 8,
+    "paraphrase_hit_at_3": 0.375,
+    "negative_count": 5,
+    "answerable_min_top_score": 2.548009,
+    "negative_max_top_score": 9.064896,
     "distractor_leaks": [],
     "stale_policy_leaks": [],
     "missing_citation_metadata": [],
     "outcomes": [
       {
         "query_id": "Q01",
+        "kind": "direct",
         "text": "goods line price variance tolerance limit",
         "accept": [
           "FIN-POL-002 \u00a72"
@@ -147,10 +163,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 15.611723
       },
       {
         "query_id": "Q02",
+        "kind": "direct",
         "text": "what is the maximum amount a department director may approve",
         "accept": [
           "FIN-POL-003 \u00a72"
@@ -166,10 +184,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 9.088052
       },
       {
         "query_id": "Q03",
+        "kind": "direct",
         "text": "how are exact duplicate invoices matched against history",
         "accept": [
           "FIN-POL-005 \u00a71"
@@ -185,10 +205,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 8.803094
       },
       {
         "query_id": "Q04",
+        "kind": "direct",
         "text": "verifying a supplier request to change bank account details",
         "accept": [
           "FIN-POL-004 \u00a72"
@@ -204,10 +226,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 8.426538
       },
       {
         "query_id": "Q05",
+        "kind": "direct",
         "text": "invoice received but no goods receipt recorded",
         "accept": [
           "FIN-POL-002 \u00a74"
@@ -223,10 +247,12 @@
         "hit_rank": 2,
         "hit_at_1": false,
         "hit_at_3": true,
-        "reciprocal_rank": 0.5
+        "reciprocal_rank": 0.5,
+        "top_score": 7.314027
       },
       {
         "query_id": "Q06",
+        "kind": "direct",
         "text": "which exception category should be used for an invoice problem",
         "accept": [
           "FIN-POL-007 \u00a71"
@@ -242,10 +268,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 6.0207
       },
       {
         "query_id": "Q07",
+        "kind": "direct",
         "text": "converting a foreign currency invoice using the corporate daily rate",
         "accept": [
           "FIN-POL-009 \u00a72"
@@ -261,10 +289,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 16.291663
       },
       {
         "query_id": "Q08",
+        "kind": "direct",
         "text": "standard supplier payment terms and when payment runs happen",
         "accept": [
           "FIN-POL-006 \u00a71",
@@ -281,10 +311,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 9.755798
       },
       {
         "query_id": "Q09",
+        "kind": "direct",
         "text": "approval needed for an emergency purchase with no purchase order",
         "accept": [
           "FIN-POL-012 \u00a73",
@@ -301,10 +333,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 5.464568
       },
       {
         "query_id": "Q10",
+        "kind": "direct",
         "text": "masking bank details and personal data in application logs",
         "accept": [
           "FIN-POL-010 \u00a72"
@@ -320,10 +354,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 16.760927
       },
       {
         "query_id": "Q11",
+        "kind": "direct",
         "text": "segregation of duties between creating a vendor and approving its invoice",
         "accept": [
           "FIN-POL-001 \u00a74"
@@ -339,10 +375,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 8.123399
       },
       {
         "query_id": "Q12",
+        "kind": "direct",
         "text": "evidence required before posting a month end accrual",
         "accept": [
           "FIN-POL-011 \u00a72"
@@ -358,10 +396,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 11.220099
       },
       {
         "query_id": "Q13",
+        "kind": "direct",
         "text": "applying a credit note against an open invoice for the same vendor",
         "accept": [
           "FIN-POL-008 \u00a72"
@@ -377,10 +417,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 13.641768
       },
       {
         "query_id": "Q14",
+        "kind": "direct",
         "text": "when are two approvals required for a higher risk payment",
         "accept": [
           "FIN-POL-003 \u00a73"
@@ -396,10 +438,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 9.564906
       },
       {
         "query_id": "Q15",
+        "kind": "direct",
         "text": "rounding method and stored inputs for a tolerance calculation",
         "accept": [
           "FIN-POL-002 \u00a75"
@@ -415,10 +459,12 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 18.968391
       },
       {
         "query_id": "Q16",
+        "kind": "direct",
         "text": "vendor status values that require an invoice to be held",
         "accept": [
           "FIN-POL-004 \u00a74"
@@ -434,7 +480,259 @@
         "hit_rank": 1,
         "hit_at_1": true,
         "hit_at_3": true,
-        "reciprocal_rank": 1.0
+        "reciprocal_rank": 1.0,
+        "top_score": 8.189437
+      },
+      {
+        "query_id": "P01",
+        "kind": "paraphrase",
+        "text": "how much can a head of department sign off on their own",
+        "accept": [
+          "FIN-POL-003 \u00a72"
+        ],
+        "retrieved": [
+          "FIN-POL-003 \u00a71",
+          "FIN-POL-011 \u00a71",
+          "FIN-POL-008 \u00a73",
+          "FIN-POL-008 \u00a75",
+          "FIN-POL-003 \u00a72",
+          "FIN-POL-012 \u00a73"
+        ],
+        "hit_rank": 5,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.2,
+        "top_score": 3.769284
+      },
+      {
+        "query_id": "P02",
+        "kind": "paraphrase",
+        "text": "supplier says their banking instructions changed, what proof do we need",
+        "accept": [
+          "FIN-POL-004 \u00a72"
+        ],
+        "retrieved": [
+          "FIN-POL-004 \u00a72",
+          "FIN-POL-008 \u00a74",
+          "FIN-POL-009 \u00a71",
+          "FIN-POL-006 \u00a71",
+          "FIN-POL-001 \u00a71",
+          "FIN-POL-005 \u00a74"
+        ],
+        "hit_rank": 1,
+        "hit_at_1": true,
+        "hit_at_3": true,
+        "reciprocal_rank": 1.0,
+        "top_score": 4.239395
+      },
+      {
+        "query_id": "P03",
+        "kind": "paraphrase",
+        "text": "the same bill turned up twice for the same value",
+        "accept": [
+          "FIN-POL-005 \u00a71"
+        ],
+        "retrieved": [
+          "FIN-POL-002 \u00a72",
+          "FIN-POL-002 \u00a73",
+          "FIN-POL-002 \u00a75",
+          "FIN-POL-008 \u00a75",
+          "FIN-POL-012 \u00a74",
+          "FIN-POL-008 \u00a72"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 3.955854
+      },
+      {
+        "query_id": "P04",
+        "kind": "paraphrase",
+        "text": "we never logged the delivery, can the bill still be paid",
+        "accept": [
+          "FIN-POL-002 \u00a74"
+        ],
+        "retrieved": [
+          "FIN-POL-002 \u00a74",
+          "FIN-POL-004 \u00a74",
+          "FIN-POL-006 \u00a72",
+          "FIN-POL-003 \u00a73",
+          "FIN-POL-005 \u00a72",
+          "FIN-POL-005 \u00a71"
+        ],
+        "hit_rank": 1,
+        "hit_at_1": true,
+        "hit_at_3": true,
+        "reciprocal_rank": 1.0,
+        "top_score": 4.191224
+      },
+      {
+        "query_id": "P05",
+        "kind": "paraphrase",
+        "text": "is there a deadline to get a supplier bill into this month's books",
+        "accept": [
+          "FIN-POL-011 \u00a71"
+        ],
+        "retrieved": [
+          "FIN-POL-001 \u00a71",
+          "FIN-POL-012 \u00a74",
+          "FIN-POL-009 \u00a71",
+          "FIN-POL-012 \u00a72",
+          "FIN-POL-007 \u00a73",
+          "FIN-POL-008 \u00a73"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 2.548009
+      },
+      {
+        "query_id": "P06",
+        "kind": "paraphrase",
+        "text": "can we settle a bill ahead of time to take a discount",
+        "accept": [
+          "FIN-POL-006 \u00a73"
+        ],
+        "retrieved": [
+          "FIN-POL-007 \u00a75",
+          "FIN-POL-011 \u00a71"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 3.702306
+      },
+      {
+        "query_id": "P07",
+        "kind": "paraphrase",
+        "text": "signs that a payment request might be fraudulent",
+        "accept": [
+          "FIN-POL-005 \u00a73"
+        ],
+        "retrieved": [
+          "FIN-POL-005 \u00a73",
+          "FIN-POL-002 \u00a74",
+          "FIN-POL-005 \u00a74",
+          "FIN-POL-004 \u00a72",
+          "FIN-POL-001 \u00a71",
+          "FIN-POL-008 \u00a74"
+        ],
+        "hit_rank": 1,
+        "hit_at_1": true,
+        "hit_at_3": true,
+        "reciprocal_rank": 1.0,
+        "top_score": 4.891897
+      },
+      {
+        "query_id": "P08",
+        "kind": "paraphrase",
+        "text": "who signs off when nobody raised an order first",
+        "accept": [
+          "FIN-POL-012 \u00a73",
+          "FIN-POL-012 \u00a72"
+        ],
+        "retrieved": [
+          "FIN-POL-001 \u00a74",
+          "FIN-POL-011 \u00a71",
+          "FIN-POL-008 \u00a73",
+          "FIN-POL-004 \u00a72",
+          "FIN-POL-008 \u00a72",
+          "FIN-POL-009 \u00a71"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 3.516422
+      },
+      {
+        "query_id": "N01",
+        "kind": "negative",
+        "text": "how many annual leave days do casual staff accrue",
+        "accept": [],
+        "retrieved": [
+          "FIN-POL-006 \u00a71",
+          "FIN-POL-007 \u00a74",
+          "FIN-POL-012 \u00a74",
+          "FIN-POL-003 \u00a73",
+          "FIN-POL-001 \u00a74",
+          "FIN-POL-005 \u00a71"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 5.290839
+      },
+      {
+        "query_id": "N02",
+        "kind": "negative",
+        "text": "what mileage rate applies when using a personal car",
+        "accept": [],
+        "retrieved": [
+          "FIN-POL-009 \u00a72",
+          "FIN-POL-010 \u00a72",
+          "FIN-POL-010 \u00a75",
+          "FIN-POL-009 \u00a73",
+          "FIN-POL-003 \u00a73",
+          "FIN-POL-004 \u00a72"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 9.064896
+      },
+      {
+        "query_id": "N03",
+        "kind": "negative",
+        "text": "which health insurance provider does the company use",
+        "accept": [],
+        "retrieved": [
+          "FIN-POL-010 \u00a74",
+          "FIN-POL-007 \u00a72",
+          "FIN-POL-011 \u00a71",
+          "FIN-POL-011 \u00a72",
+          "FIN-POL-012 \u00a74",
+          "FIN-POL-002 \u00a75"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 5.333304
+      },
+      {
+        "query_id": "N04",
+        "kind": "negative",
+        "text": "what is the office wifi password",
+        "accept": [],
+        "retrieved": [],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 0.0
+      },
+      {
+        "query_id": "N05",
+        "kind": "negative",
+        "text": "notice period for resigning from a permanent role",
+        "accept": [],
+        "retrieved": [
+          "FIN-POL-011 \u00a72",
+          "FIN-POL-010 \u00a73",
+          "FIN-POL-003 \u00a75",
+          "FIN-POL-003 \u00a72"
+        ],
+        "hit_rank": null,
+        "hit_at_1": false,
+        "hit_at_3": false,
+        "reciprocal_rank": 0.0,
+        "top_score": 3.939243
       }
     ]
   }
