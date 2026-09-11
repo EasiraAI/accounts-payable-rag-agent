@@ -941,6 +941,38 @@ class Orchestrator:
         return " ".join(parts)[:1_190]
 
     @staticmethod
+    def _with_payment_schedule(state: RunState, next_action: str, outcome: Outcome) -> str:
+        """Append the engine-computed payment schedule to the next action.
+
+        The model writes the prose and never the date. FIN-POL-006 §2 schedules an approved
+        invoice for a standard run before its due date, and that run is computed by
+        ``rules/payment_terms.py`` from the agreed terms; a date produced by a model would be
+        arithmetic taken from the model, which is what FIN-POL-002 §5 and this system's whole
+        division of labour forbid.
+
+        Appended rather than substituted because the model's sentence says what a person
+        should *do* and this says when the payment would land. Only for an approval: naming a
+        run date on a rejected or held case would describe a payment that is not going to
+        happen.
+        """
+        if outcome is not Outcome.APPROVE_FOR_POSTING or state.payable_on is None:
+            return next_action
+        if state.proposed_payment_run is None:
+            schedule = (
+                f" The invoice is payable {state.payable_on.isoformat()} and no standard "
+                "payment run falls before that date, so scheduling is for Accounts Payable to "
+                "resolve; internal delay alone is not grounds for a manual payment "
+                "(FIN-POL-006 §3)."
+            )
+        else:
+            schedule = (
+                f" Proposed payment run {state.proposed_payment_run.isoformat()}, ahead of the "
+                f"due date {state.payable_on.isoformat()} (FIN-POL-006 §2). A proposal only: "
+                "an agent may prepare a schedule and may not release a payment file."
+            )
+        return truncate_detail(next_action.rstrip() + schedule)
+
+    @staticmethod
     def _deterministic_next_action(state: RunState, outcome: Outcome) -> str:
         if outcome is Outcome.APPROVE_FOR_POSTING:
             # The proposed run is named when one exists. FIN-POL-006 §2 schedules an approved
@@ -1251,6 +1283,7 @@ class Orchestrator:
 
         requires_approval = final_outcome.is_consequential
         summary, next_action = self._screen_narrative(state, emitter, narrative, final_outcome)
+        next_action = self._with_payment_schedule(state, next_action, final_outcome)
         recommendation = Recommendation(
             outcome=final_outcome,
             summary=summary,

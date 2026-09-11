@@ -19,7 +19,7 @@ Generated from the transcript the evaluation run emitted, not written by hand, s
 | Exceptions raised | none |
 | Fraud indicators | none |
 | Unknowns | 0 |
-| Decision reference | DEC-53D2F33A2B2B |
+| Decision reference | DEC-11A3AA8666A3 |
 
 ## Recommendation
 
@@ -27,7 +27,7 @@ Generated from the transcript the evaluation run emitted, not written by hand, s
 
 **Summary:** The invoice matches its purchase order and recorded receipts within policy tolerance, the vendor is active with no blocking flags, and no duplicate was found. Approval is required before posting.
 
-**Next action:** Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run.
+**Next action:** Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run. Proposed payment run 2026-10-08, ahead of the due date 2026-10-09 (FIN-POL-006 §2). A proposal only: an agent may prepare a schedule and may not release a payment file.
 
 **Confidence:** 0.88 — complete three-way match with recorded receipts and a clean vendor record
 
@@ -117,22 +117,22 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 ## Actions taken
 
 - **RECORD_APPROVE_FOR_POSTING** against `SIMULATED_ERP`
-  - Reference: `DEC-53D2F33A2B2B`
+  - Reference: `DEC-11A3AA8666A3`
   - Simulated: True
-  - Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_18906cb587224675 was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING
+  - Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_9bf69516e0b04afa was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING
 
 ## Decision receipt
 
 ```json
 {
-  "decision_ref": "DEC-53D2F33A2B2B",
-  "run_id": "run_015a5dc465a8410c",
+  "decision_ref": "DEC-11A3AA8666A3",
+  "run_id": "run_f37c7618d1d54085",
   "case_id": "FIN-001",
   "outcome": "APPROVE_FOR_POSTING",
   "amount": "17952.00",
   "currency": "AUD",
-  "idempotency_key": "53d2f33a2b2b3dec65f9999e2e0ba69915cc1dd01d47babb09121d3f5500d874",
-  "recorded_at": "2026-09-11T05:08:18.572829Z",
+  "idempotency_key": "11a3aa8666a3522af0ef192b58d580c1c48d9a8b281de7f37a6eca5ff7f478b0",
+  "recorded_at": "2026-09-11T05:13:41.576512Z",
   "simulated": true,
   "replayed": false,
   "posting_system": "SIMULATED_ERP"
@@ -152,19 +152,19 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 | 3 | `PHASE_COMPLETED` | INTAKE | SUCCESS | 1 | next_phase=RETRIEVE_POLICY |
 | 4 | `PHASE_STARTED` | RETRIEVE_POLICY |  |  |  |
 | 5 | `TOOL_CALL` |  | SUCCESS | 1 | tool=retrieve_finance_documents; attempt=1 |
-| 6 | `RETRIEVAL` |  | SUCCESS | 5 | query=three-way matching tolerance price variance quantity and goods rece...; purpose=three_way_match; result_count=4 |
+| 6 | `RETRIEVAL` |  | SUCCESS | 3 | query=three-way matching tolerance price variance quantity and goods rece...; purpose=three_way_match; result_count=4 |
 | 7 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
 | 8 | `RETRIEVAL` |  | SUCCESS | 1 | query=delegated financial authority approval limits and when two approval...; purpose=delegated_authority; result_count=4 |
 | 9 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
 | 10 | `RETRIEVAL` |  | SUCCESS | 1 | query=duplicate invoice detection matching fields and fraud indicators; purpose=duplicate_and_fraud; result_count=4 |
-| 11 | `TOOL_CALL` |  | SUCCESS | 1 | tool=retrieve_finance_documents; attempt=1 |
-| 12 | `RETRIEVAL` |  | SUCCESS | 2 | query=vendor status values requiring a hold and verifying a bank account ...; purpose=vendor_controls; result_count=4 |
-| 13 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 15 | next_phase=GATHER_EVIDENCE |
+| 11 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
+| 12 | `RETRIEVAL` |  | SUCCESS | 1 | query=vendor status values requiring a hold and verifying a bank account ...; purpose=vendor_controls; result_count=4 |
+| 13 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 14 | next_phase=GATHER_EVIDENCE |
 | 14 | `PHASE_STARTED` | GATHER_EVIDENCE |  |  |  |
 | 15 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_vendor_record; attempt=1 |
 | 16 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_purchase_order; attempt=1 |
 | 17 | `TOOL_CALL` |  | SUCCESS | 0 | tool=check_invoice_history; attempt=1 |
-| 18 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 11 | next_phase=RECONCILE |
+| 18 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 6 | next_phase=RECONCILE |
 | 19 | `PHASE_STARTED` | RECONCILE |  |  |  |
 | 20 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=three_way_match; exception_count=0 |
 | 21 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=duplicate_check; exception_count=0 |
@@ -174,18 +174,18 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 | 25 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=tax_assessment; exception_count=0 |
 | 26 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=payment_terms; exception_count=0 |
 | 27 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=repeated_non_po; exception_count=0 |
-| 28 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 13 | next_phase=ASSESS_RISK |
+| 28 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 7 | next_phase=ASSESS_RISK |
 | 29 | `PHASE_STARTED` | ASSESS_RISK |  |  |  |
 | 30 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=EvidenceSynthesis; attempt=1 |
 | 31 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 2 | next_phase=RECOMMEND |
 | 32 | `PHASE_STARTED` | RECOMMEND |  |  |  |
 | 33 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=RecommendationNarrative; attempt=1 |
 | 34 | `RECOMMENDATION_READY` | RECOMMEND | APPROVE_FOR_POSTING |  | outcome=APPROVE_FOR_POSTING |
-| 35 | `APPROVAL_REQUESTED` | RECOMMEND | AWAITING_HUMAN_DECISION |  | approval_id=apr_18906cb587224675; requested_outcome=APPROVE_FOR_POSTING |
-| 36 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 5 | next_phase=AWAITING_APPROVAL |
-| 37 | `APPROVAL_RESOLVED` | AWAITING_APPROVAL | APPROVED |  | approval_id=apr_18906cb587224675 |
+| 35 | `APPROVAL_REQUESTED` | RECOMMEND | AWAITING_HUMAN_DECISION |  | approval_id=apr_9bf69516e0b04afa; requested_outcome=APPROVE_FOR_POSTING |
+| 36 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 6 | next_phase=AWAITING_APPROVAL |
+| 37 | `APPROVAL_RESOLVED` | AWAITING_APPROVAL | APPROVED |  | approval_id=apr_9bf69516e0b04afa |
 | 38 | `PHASE_STARTED` | EXECUTE_DECISION |  |  |  |
-| 39 | `DECISION_SUBMITTED` | EXECUTE_DECISION | RECORDED | 1 | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-53D2F33A2B2B; replayed=False |
-| 40 | `PHASE_COMPLETED` | EXECUTE_DECISION | SUCCESS | 6 | next_phase=COMPLETED |
-| 41 | `RUN_COMPLETED` | COMPLETED | COMPLETED |  | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-53D2F33A2B2B; exception_count=0; status=COMPLETED |
+| 39 | `DECISION_SUBMITTED` | EXECUTE_DECISION | RECORDED | 0 | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-11A3AA8666A3; replayed=False |
+| 40 | `PHASE_COMPLETED` | EXECUTE_DECISION | SUCCESS | 3 | next_phase=COMPLETED |
+| 41 | `RUN_COMPLETED` | COMPLETED | COMPLETED |  | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-11A3AA8666A3; exception_count=0; status=COMPLETED |
 

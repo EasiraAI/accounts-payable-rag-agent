@@ -14,7 +14,7 @@ receipt is stamped `simulated: true`.
 
 | | |
 |---|---|
-| Tests | 599 passing, plus one live-model test excluded by default |
+| Tests | 604 passing, plus one live-model test excluded by default |
 | Fixture cases | 5 of 5 passing (FIN-001 to FIN-005) |
 | Retrieval quality | Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 golden queries |
 | Retrieval safety | 0 distractor leaks, 0 stale-policy leaks |
@@ -191,7 +191,7 @@ as a pipeline step without parsing its output.
 |---|---|---|---|---|
 | Unit | `tests/unit` | 291 | none | Rule thresholds at their boundaries, redaction, property-based invariants |
 | Contract | `tests/contract` | 161 | none | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
-| Evaluation | `tests/eval` | 147 | none (deterministic adapter) | Retrieval grounding, the five cases, safety properties |
+| Evaluation | `tests/eval` | 152 | none (deterministic adapter) | Retrieval grounding, the five cases, safety properties |
 | Live model | `tests/eval`, marked `live_model` | 1 | yes | The same cases through a real model |
 
 ## 8. Live-model tier (requires external access)

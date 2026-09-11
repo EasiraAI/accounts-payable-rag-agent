@@ -330,7 +330,7 @@ The system is built and verified. Numbers below are reproduced by `ap-agent eval
 
 | | |
 |---|---|
-| Tests | 599 passing across three tiers (291 unit, 161 contract, 147 evaluation), plus 1 live-model test excluded by default |
+| Tests | 604 passing across three tiers (291 unit, 161 contract, 152 evaluation), plus 1 live-model test excluded by default |
 | Fixture cases | 5 of 5 (FIN-001 to FIN-005) |
 | Retrieval | Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 golden queries, 0 leaks |
 | Type checking | mypy strict, 57 modules, clean |

@@ -431,7 +431,7 @@ Three tiers, separated by what they depend on rather than by speed.
 |---|---|---|---|
 | Unit | 291 | nothing | Rule thresholds at their boundaries, redaction, property-based invariants |
 | Contract | 161 | nothing | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
-| Evaluation | 147 | deterministic adapter | Retrieval grounding, the five cases, safety properties |
+| Evaluation | 152 | deterministic adapter | Retrieval grounding, the five cases, safety properties |
 | Live model | 1 | external access | The same cases through a real model |
 
 Fixture assertions live in the fixture files, so the expected control behaviour is declared

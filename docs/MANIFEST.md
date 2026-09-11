@@ -5,7 +5,7 @@ version of the same information is served by `GET /manifest` and printed by
 `ap-agent manifest`; that one is generated from the running configuration, so it cannot
 describe a system other than the one answering the request.
 
-Verified against commit state: 15 corpus documents, 58 chunks, 599 tests passing, 5 of 5
+Verified against commit state: 15 corpus documents, 58 chunks, 604 tests passing, 5 of 5
 fixture cases passing.
 
 ---
@@ -190,7 +190,7 @@ well-behaved caller into retrying a normal event.
 |---|---|---:|---|---|
 | Unit | `pytest tests/unit` | 291 | none | none |
 | Contract | `pytest tests/contract` | 161 | none | none |
-| Evaluation | `pytest tests/eval` | 147 | deterministic adapter | none |
+| Evaluation | `pytest tests/eval` | 152 | deterministic adapter | none |
 | Live model | `pytest -m live_model` | 1 | Claude | required |
 | Fixture cases | `ap-agent eval` | 5 cases | deterministic adapter | none |
 | Retrieval quality | included in `ap-agent eval` | 16 queries | none | none |

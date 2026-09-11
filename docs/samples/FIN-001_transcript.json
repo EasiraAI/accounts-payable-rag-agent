@@ -2,7 +2,7 @@
   "case_id": "FIN-001",
   "intent": "Valid three-way match. Invoice, purchase order and receipts agree; vendor active; policy requires an approver. Expect APPROVE_FOR_POSTING, a stop at the approval gate, then exactly one recorded decision.",
   "summary": {
-    "run_id": "run_015a5dc465a8410c",
+    "run_id": "run_f37c7618d1d54085",
     "case_id": "FIN-001",
     "status": "COMPLETED",
     "phase": "COMPLETED",
@@ -12,7 +12,7 @@
     "exceptions": [],
     "indicators": [],
     "unknowns": 0,
-    "decision_ref": "DEC-53D2F33A2B2B",
+    "decision_ref": "DEC-11A3AA8666A3",
     "failure_reason": null
   },
   "request": {
@@ -416,14 +416,14 @@
       ]
     },
     "exceptions": [],
-    "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run.",
+    "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run. Proposed payment run 2026-10-08, ahead of the due date 2026-10-09 (FIN-POL-006 \u00a72). A proposal only: an agent may prepare a schedule and may not release a payment file.",
     "requires_approval": true,
     "requires_second_approval": false,
     "second_approval_reason": ""
   },
   "final_result": {
     "case_id": "FIN-001",
-    "run_id": "run_015a5dc465a8410c",
+    "run_id": "run_f37c7618d1d54085",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -873,11 +873,11 @@
       {
         "action": "RECORD_APPROVE_FOR_POSTING",
         "target": "SIMULATED_ERP",
-        "performed_at": "2026-09-11T05:08:18.572829Z",
-        "reference": "DEC-53D2F33A2B2B",
-        "idempotency_key": "53d2f33a2b2b3dec65f9999e2e0ba69915cc1dd01d47babb09121d3f5500d874",
+        "performed_at": "2026-09-11T05:13:41.576512Z",
+        "reference": "DEC-11A3AA8666A3",
+        "idempotency_key": "11a3aa8666a3522af0ef192b58d580c1c48d9a8b281de7f37a6eca5ff7f478b0",
         "simulated": true,
-        "detail": "Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_18906cb587224675 was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING"
+        "detail": "Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_9bf69516e0b04afa was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING"
       }
     ],
     "recommendation": {
@@ -1244,23 +1244,23 @@
         ]
       },
       "exceptions": [],
-      "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run.",
+      "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run. Proposed payment run 2026-10-08, ahead of the due date 2026-10-09 (FIN-POL-006 \u00a72). A proposal only: an agent may prepare a schedule and may not release a payment file.",
       "requires_approval": true,
       "requires_second_approval": false,
       "second_approval_reason": ""
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T05:08:18.575788Z"
+    "completed_at": "2026-09-11T05:13:41.578139Z"
   },
   "decision": {
-    "decision_ref": "DEC-53D2F33A2B2B",
-    "run_id": "run_015a5dc465a8410c",
+    "decision_ref": "DEC-11A3AA8666A3",
+    "run_id": "run_f37c7618d1d54085",
     "case_id": "FIN-001",
     "outcome": "APPROVE_FOR_POSTING",
     "amount": "17952.00",
     "currency": "AUD",
-    "idempotency_key": "53d2f33a2b2b3dec65f9999e2e0ba69915cc1dd01d47babb09121d3f5500d874",
-    "recorded_at": "2026-09-11T05:08:18.572829Z",
+    "idempotency_key": "11a3aa8666a3522af0ef192b58d580c1c48d9a8b281de7f37a6eca5ff7f478b0",
+    "recorded_at": "2026-09-11T05:13:41.576512Z",
     "simulated": true,
     "replayed": false,
     "posting_system": "SIMULATED_ERP"
@@ -1331,7 +1331,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 5,
+      "duration_ms": 3,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1544,7 +1544,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1556,7 +1556,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -1620,7 +1620,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 15,
+      "duration_ms": 14,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1676,7 +1676,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 11,
+      "duration_ms": 6,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1792,7 +1792,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 13,
+      "duration_ms": 7,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1881,7 +1881,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_18906cb587224675",
+        "approval_id": "apr_9bf69516e0b04afa",
         "requested_outcome": "APPROVE_FOR_POSTING",
         "amount": "17952.00",
         "currency": "AUD",
@@ -1895,7 +1895,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 5,
+      "duration_ms": 6,
       "payload": {
         "next_phase": "AWAITING_APPROVAL",
         "steps_used": 6,
@@ -1909,7 +1909,7 @@
       "outcome": "APPROVED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_18906cb587224675",
+        "approval_id": "apr_9bf69516e0b04afa",
         "decision": "APPROVED",
         "approver_id": "U-3081",
         "approver_role": "DEPARTMENT_DIRECTOR",
@@ -1936,9 +1936,9 @@
       "event_type": "DECISION_SUBMITTED",
       "phase": "EXECUTE_DECISION",
       "outcome": "RECORDED",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
-        "decision_ref": "DEC-53D2F33A2B2B",
+        "decision_ref": "DEC-11A3AA8666A3",
         "outcome": "APPROVE_FOR_POSTING",
         "amount": "17952.00",
         "currency": "AUD",
@@ -1952,7 +1952,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "EXECUTE_DECISION",
       "outcome": "SUCCESS",
-      "duration_ms": 6,
+      "duration_ms": 3,
       "payload": {
         "next_phase": "COMPLETED",
         "steps_used": 7,
@@ -1973,7 +1973,7 @@
         "exception_count": 0,
         "unknown_count": 0,
         "action_count": 1,
-        "decision_ref": "DEC-53D2F33A2B2B"
+        "decision_ref": "DEC-11A3AA8666A3"
       }
     }
   ]

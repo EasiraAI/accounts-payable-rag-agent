@@ -2,7 +2,7 @@
   "case_id": "FIN-004",
   "intent": "Missing evidence. The purchasing system times out on every attempt and no receipt exists. Expect bounded retries, the gap exposed as an unknown, a hold, and no approval request for payment.",
   "summary": {
-    "run_id": "run_21fd821aa31544ff",
+    "run_id": "run_6e9873ef331f4301",
     "case_id": "FIN-004",
     "status": "HELD",
     "phase": "HELD",
@@ -274,7 +274,7 @@
   },
   "final_result": {
     "case_id": "FIN-004",
-    "run_id": "run_21fd821aa31544ff",
+    "run_id": "run_6e9873ef331f4301",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -764,7 +764,7 @@
       "second_approval_reason": "bank account changed on 2024-10-11 with no settled payment since, so this is the first payment after the change (FIN-POL-004 \u00a72)"
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T05:08:18.998182Z"
+    "completed_at": "2026-09-11T05:13:41.947220Z"
   },
   "decision": null,
   "events": [
@@ -801,7 +801,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "INTAKE",
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "next_phase": "RETRIEVE_POLICY",
         "steps_used": 1,
@@ -972,7 +972,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -984,7 +984,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "duplicate invoice detection matching fields and fraud indicators",
         "query_terms": [
@@ -1046,7 +1046,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1058,7 +1058,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -1122,7 +1122,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 13,
+      "duration_ms": 11,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1167,7 +1167,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "TIMEOUT",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "tool": "get_purchase_order",
         "attempt": 2,
@@ -1205,7 +1205,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 161,
+      "duration_ms": 163,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1355,7 +1355,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 14,
+      "duration_ms": 10,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1445,7 +1445,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 5,
       "payload": {
         "next_phase": "HELD",
         "steps_used": 6,

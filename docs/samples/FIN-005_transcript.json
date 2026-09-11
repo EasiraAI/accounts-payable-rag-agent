@@ -2,7 +2,7 @@
   "case_id": "FIN-005",
   "intent": "Duplicate approval. The same approval callback is delivered twice. Expect exactly one effective decision, identical response bodies, the second flagged as a replay.",
   "summary": {
-    "run_id": "run_2441b3e1491d4da6",
+    "run_id": "run_a4c9473ae4ef425b",
     "case_id": "FIN-005",
     "status": "COMPLETED",
     "phase": "COMPLETED",
@@ -12,7 +12,7 @@
     "exceptions": [],
     "indicators": [],
     "unknowns": 0,
-    "decision_ref": "DEC-CC3A64AB96B8",
+    "decision_ref": "DEC-CF68CAE94B68",
     "failure_reason": null
   },
   "request": {
@@ -336,14 +336,14 @@
       ]
     },
     "exceptions": [],
-    "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run.",
+    "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run. Proposed payment run 2026-10-08, ahead of the due date 2026-10-09 (FIN-POL-006 \u00a72). A proposal only: an agent may prepare a schedule and may not release a payment file.",
     "requires_approval": true,
     "requires_second_approval": false,
     "second_approval_reason": ""
   },
   "final_result": {
     "case_id": "FIN-005",
-    "run_id": "run_2441b3e1491d4da6",
+    "run_id": "run_a4c9473ae4ef425b",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -729,11 +729,11 @@
       {
         "action": "RECORD_APPROVE_FOR_POSTING",
         "target": "SIMULATED_ERP",
-        "performed_at": "2026-09-11T05:08:19.079192Z",
-        "reference": "DEC-CC3A64AB96B8",
-        "idempotency_key": "cc3a64ab96b89c46bb899216bd701779d091dc9bca2d022f6cd98e56fb7987c8",
+        "performed_at": "2026-09-11T05:13:42.022906Z",
+        "reference": "DEC-CF68CAE94B68",
+        "idempotency_key": "cf68cae94b68aa01adc62cf93e221dd05a02d5e9cb3b5316b4b7a6b5e16d05b3",
         "simulated": true,
-        "detail": "Authorised by U-7781 (COST_CENTRE_MANAGER); approval apr_915e2f1c5f094ce7 was granted by U-7781 (COST_CENTRE_MANAGER) for APPROVE_FOR_POSTING"
+        "detail": "Authorised by U-7781 (COST_CENTRE_MANAGER); approval apr_479613c0212b459a was granted by U-7781 (COST_CENTRE_MANAGER) for APPROVE_FOR_POSTING"
       }
     ],
     "recommendation": {
@@ -1029,23 +1029,23 @@
         ]
       },
       "exceptions": [],
-      "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run.",
+      "next_action": "Route to an approver holding at least the required delegated authority, then post and schedule for the next standard payment run. Proposed payment run 2026-10-08, ahead of the due date 2026-10-09 (FIN-POL-006 \u00a72). A proposal only: an agent may prepare a schedule and may not release a payment file.",
       "requires_approval": true,
       "requires_second_approval": false,
       "second_approval_reason": ""
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T05:08:19.080836Z"
+    "completed_at": "2026-09-11T05:13:42.024434Z"
   },
   "decision": {
-    "decision_ref": "DEC-CC3A64AB96B8",
-    "run_id": "run_2441b3e1491d4da6",
+    "decision_ref": "DEC-CF68CAE94B68",
+    "run_id": "run_a4c9473ae4ef425b",
     "case_id": "FIN-005",
     "outcome": "APPROVE_FOR_POSTING",
     "amount": "11000.00",
     "currency": "AUD",
-    "idempotency_key": "cc3a64ab96b89c46bb899216bd701779d091dc9bca2d022f6cd98e56fb7987c8",
-    "recorded_at": "2026-09-11T05:08:19.079192Z",
+    "idempotency_key": "cf68cae94b68aa01adc62cf93e221dd05a02d5e9cb3b5316b4b7a6b5e16d05b3",
+    "recorded_at": "2026-09-11T05:13:42.022906Z",
     "simulated": true,
     "replayed": false,
     "posting_system": "SIMULATED_ERP"
@@ -1405,7 +1405,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 10,
+      "duration_ms": 9,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1461,7 +1461,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 5,
+      "duration_ms": 4,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1612,7 +1612,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "ASSESS_RISK",
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "next_phase": "RECOMMEND",
         "steps_used": 5,
@@ -1666,7 +1666,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_915e2f1c5f094ce7",
+        "approval_id": "apr_479613c0212b459a",
         "requested_outcome": "APPROVE_FOR_POSTING",
         "amount": "11000.00",
         "currency": "AUD",
@@ -1706,7 +1706,7 @@
       "outcome": "APPROVED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_915e2f1c5f094ce7",
+        "approval_id": "apr_479613c0212b459a",
         "decision": "APPROVED",
         "approver_id": "U-7781",
         "approver_role": "COST_CENTRE_MANAGER",
@@ -1735,7 +1735,7 @@
       "outcome": "RECORDED",
       "duration_ms": 0,
       "payload": {
-        "decision_ref": "DEC-CC3A64AB96B8",
+        "decision_ref": "DEC-CF68CAE94B68",
         "outcome": "APPROVE_FOR_POSTING",
         "amount": "11000.00",
         "currency": "AUD",
@@ -1770,7 +1770,7 @@
         "exception_count": 0,
         "unknown_count": 0,
         "action_count": 1,
-        "decision_ref": "DEC-CC3A64AB96B8"
+        "decision_ref": "DEC-CF68CAE94B68"
       }
     },
     {
@@ -1780,7 +1780,7 @@
       "outcome": "REPLAYED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_915e2f1c5f094ce7",
+        "approval_id": "apr_479613c0212b459a",
         "status": "APPROVED",
         "approver_id": "U-7781",
         "signatures_collected": 1,

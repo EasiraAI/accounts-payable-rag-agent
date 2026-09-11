@@ -1008,3 +1008,48 @@ class TestRepeatSignatureSpendsNothing:
             if event.event_type == "APPROVAL_REPLAYED"
         ]
         assert any("already signed" in note for note in notes)
+
+
+class TestThePaymentScheduleComesFromTheEngine:
+    """FIN-POL-006 §2's run date is arithmetic, so it must never come from the model.
+
+    The recommendation's next action is written by the model. The schedule is appended to it
+    by the engine, from the agreed terms, because a date produced by a model would be exactly
+    the free-form arithmetic FIN-POL-002 §5 forbids and this system's division of labour
+    exists to prevent.
+    """
+
+    def test_the_next_action_names_the_computed_run(self, settings, repository, retriever):
+        orchestrator = _orchestrator(settings, repository, retriever)
+        state = orchestrator.start(_case("FIN-001"))
+        assert state.recommendation is not None
+        assert state.proposed_payment_run is not None
+        assert state.proposed_payment_run.isoformat() in state.recommendation.next_action
+
+    def test_the_run_falls_on_or_before_the_due_date(self, settings, repository, retriever):
+        orchestrator = _orchestrator(settings, repository, retriever)
+        state = orchestrator.start(_case("FIN-001"))
+        assert state.payable_on is not None
+        assert state.proposed_payment_run is not None
+        assert state.proposed_payment_run <= state.payable_on
+
+    def test_the_run_is_a_standard_payment_day(self, settings, repository, retriever):
+        """FIN-POL-006 §2: standard runs occur Tuesday and Thursday."""
+        orchestrator = _orchestrator(settings, repository, retriever)
+        state = orchestrator.start(_case("FIN-001"))
+        assert state.proposed_payment_run is not None
+        assert state.proposed_payment_run.weekday() in (1, 3)
+
+    def test_the_next_action_says_it_is_a_proposal(self, settings, repository, retriever):
+        """FIN-POL-006 §4 forbids an agent releasing a payment file."""
+        orchestrator = _orchestrator(settings, repository, retriever)
+        state = orchestrator.start(_case("FIN-001"))
+        assert state.recommendation is not None
+        assert "may not release a payment file" in state.recommendation.next_action
+
+    def test_a_held_case_is_given_no_run_date(self, settings, repository, retriever):
+        """Naming a date for a payment that is not going to happen would mislead."""
+        orchestrator = _orchestrator(settings, repository, retriever)
+        state = orchestrator.start(_case("FIN-004"))
+        assert state.recommendation is not None
+        assert "Proposed payment run" not in state.recommendation.next_action
