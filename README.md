@@ -14,7 +14,7 @@ path. Posting targets a simulated ledger and every receipt is stamped `simulated
 | Tests | 669 passing, plus 1 live-model test excluded by default |
 | Fixture cases | 5 of 5 (FIN-001 to FIN-005) |
 | Retrieval | Direct Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 queries. Paraphrase Hit@3 0.38 over 8. 5 unanswerable, 0 leaks |
-| Types / lint | mypy strict clean, 59 modules; ruff clean |
+| Types / lint | mypy strict clean, 61 modules; ruff clean |
 | Corpus | 15 documents, 58 section chunks |
 | Generation | 5/5 narratives grounded: every figure in the model's prose traces to a computed value |
 | Time spent | About 5 hours against an 8-hour timebox. The git history spans 11:22 to 15:33 on 11 September 2026; reading the corpus and planning came before the first commit |
@@ -354,7 +354,8 @@ src/ap_agent/
   rag/                ingestion, BM25 index, optional dense side, retriever
   tools/              six tool contracts, the runner, simulated backends
   llm/                LLMClient protocol, adapters, prompt fencing, output schemas
-  orchestration/      phase plan, budgets, approval gate, narrative screen, state machine
+  orchestration/      phase plan, budgets, gates, approvals, narrative screen,
+                      summaries, state machine
   persistence/        SQLite repository and schema
   observability/      redaction and structured events
   evaluation/         retrieval measurement and the fixture runner

@@ -2,7 +2,7 @@
   "case_id": "FIN-002",
   "intent": "Duplicate invoice. Invoice number and amount match an already-paid record. Expect REJECT_DUPLICATE with both record identifiers cited, and no proposal to pay.",
   "summary": {
-    "run_id": "run_244434ad35ec4639",
+    "run_id": "run_e1410c7b775b44be",
     "case_id": "FIN-002",
     "status": "AWAITING_APPROVAL",
     "phase": "AWAITING_APPROVAL",
@@ -377,7 +377,7 @@
   },
   "final_result": {
     "case_id": "FIN-002",
-    "run_id": "run_244434ad35ec4639",
+    "run_id": "run_e1410c7b775b44be",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -1152,7 +1152,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1164,7 +1164,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1229,7 +1229,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1241,7 +1241,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "delegated financial authority approval limits and when two approvals are required",
         "query_terms": [
@@ -1389,7 +1389,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -1453,7 +1453,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 11,
+      "duration_ms": 14,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1509,7 +1509,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 0,
+      "duration_ms": 1,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1521,7 +1521,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 2,
       "payload": {
         "query": "supplier payment instructions urgent bank account change new account details",
         "query_terms": [
@@ -1583,7 +1583,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 7,
+      "duration_ms": 9,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1825,7 +1825,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_9f846fcd63d14a44",
+        "approval_id": "apr_f22467548fb0469c",
         "requested_outcome": "REJECT_DUPLICATE",
         "amount": "9240.00",
         "currency": "AUD",
@@ -1841,7 +1841,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 5,
+      "duration_ms": 7,
       "payload": {
         "next_phase": "AWAITING_APPROVAL",
         "steps_used": 6,

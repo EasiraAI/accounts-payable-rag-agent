@@ -15,7 +15,7 @@
         "status": "COMPLETED",
         "steps_used": 7,
         "tool_calls_used": 7,
-        "duration_ms": 145,
+        "duration_ms": 118,
         "decision_count": 1,
         "exception_categories": [],
         "fraud_indicators": [],
@@ -26,7 +26,7 @@
         "narrative_grounded": true,
         "narrative_findings": [],
         "failures": [],
-        "run_id": "run_c5e57d3acfc8475b"
+        "run_id": "run_48cc6549149e4227"
       },
       {
         "case_id": "FIN-002",
@@ -37,7 +37,7 @@
         "status": "AWAITING_APPROVAL",
         "steps_used": 6,
         "tool_calls_used": 8,
-        "duration_ms": 77,
+        "duration_ms": 82,
         "decision_count": 0,
         "exception_categories": [
           "DUPLICATE_RISK"
@@ -50,7 +50,7 @@
         "narrative_grounded": true,
         "narrative_findings": [],
         "failures": [],
-        "run_id": "run_244434ad35ec4639"
+        "run_id": "run_e1410c7b775b44be"
       },
       {
         "case_id": "FIN-003",
@@ -61,7 +61,7 @@
         "status": "HELD",
         "steps_used": 6,
         "tool_calls_used": 8,
-        "duration_ms": 66,
+        "duration_ms": 108,
         "decision_count": 0,
         "exception_categories": [
           "BANK_CHANGE"
@@ -79,7 +79,7 @@
         "narrative_grounded": true,
         "narrative_findings": [],
         "failures": [],
-        "run_id": "run_92a92094ca9c4690"
+        "run_id": "run_7acf997a0d094dc1"
       },
       {
         "case_id": "FIN-004",
@@ -90,7 +90,7 @@
         "status": "HELD",
         "steps_used": 6,
         "tool_calls_used": 9,
-        "duration_ms": 241,
+        "duration_ms": 242,
         "decision_count": 0,
         "exception_categories": [
           "BANK_CHANGE",
@@ -104,7 +104,7 @@
         "narrative_grounded": true,
         "narrative_findings": [],
         "failures": [],
-        "run_id": "run_798404cb3cf941ca"
+        "run_id": "run_fb2b24501e6c4b77"
       },
       {
         "case_id": "FIN-005",
@@ -115,7 +115,7 @@
         "status": "COMPLETED",
         "steps_used": 7,
         "tool_calls_used": 8,
-        "duration_ms": 77,
+        "duration_ms": 109,
         "decision_count": 1,
         "exception_categories": [],
         "fraud_indicators": [],
@@ -126,10 +126,10 @@
         "narrative_grounded": true,
         "narrative_findings": [],
         "failures": [],
-        "run_id": "run_814c9f8910fc415c"
+        "run_id": "run_bf04f4884fac4be3"
       }
     ],
-    "duration_ms": 661
+    "duration_ms": 709
   },
   "retrieval": {
     "query_count": 16,

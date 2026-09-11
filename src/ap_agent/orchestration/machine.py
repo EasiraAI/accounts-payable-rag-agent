@@ -68,7 +68,6 @@ from ap_agent.domain.money import Money
 from ap_agent.domain.request import ApprovalDecision, ProcessingRequest, UntrustedText
 from ap_agent.domain.results import (
     ActionRecord,
-    ApprovalRequest,
     ApprovalSignature,
     ConfidenceAssessment,
     FinalResult,
@@ -96,7 +95,7 @@ from ap_agent.domain.rules.segregation import (
 from ap_agent.domain.rules.tax import assess_tax
 from ap_agent.domain.rules.validity import check_invoice_validity
 from ap_agent.domain.rules.vendor import vendor_status_check
-from ap_agent.domain.run_state import RunState, new_approval_id, utc_now
+from ap_agent.domain.run_state import RunState, utc_now
 from ap_agent.llm import (
     SYSTEM_PROMPT,
     EvidenceSynthesis,
@@ -110,12 +109,22 @@ from ap_agent.llm import (
 )
 from ap_agent.observability.events import EventEmitter
 from ap_agent.observability.redact import redact_text
+from ap_agent.orchestration.approvals import create_approval, short_circuit_replay
 from ap_agent.orchestration.gates import Budget, authorise_decision
 from ap_agent.orchestration.narrative_screen import screen_narrative
 from ap_agent.orchestration.phases import (
     EVIDENCE_QUERY,
     POLICY_QUERIES,
     next_phase,
+)
+from ap_agent.orchestration.summaries import (
+    computed_values,
+    deterministic_next_action,
+    deterministic_summary,
+    history_summary,
+    order_summary,
+    vendor_summary,
+    with_payment_schedule,
 )
 from ap_agent.persistence.repository import Repository
 from ap_agent.rag.retriever import EVIDENCE_DOC_TYPES, POLICY_DOC_TYPES, Retriever
@@ -888,7 +897,7 @@ class Orchestrator:
             # collected its signatures, "signed off" is simply true.
             approval_is_recorded=bool(approval and approval.signature_requirement_met),
             settlement_is_authorised=state.decision is not None,
-            computed_values=self._computed_values(state),
+            computed_values=computed_values(state),
         )
         if screen.clean:
             return narrative.summary, narrative.next_action
@@ -925,156 +934,7 @@ class Orchestrator:
                 )
             ]
         )
-        return self._deterministic_summary(state, outcome), self._deterministic_next_action(
-            state, outcome
-        )
-
-    @staticmethod
-    def _computed_values(state: RunState) -> list[str]:
-        """Every figure the engine computed, as text, for the grounding check.
-
-        Assembled from the calculation records, the exception records and the run's own
-        amounts rather than from a curated list, so a control added later contributes its
-        figures without anyone remembering to extend this. A figure absent from here and
-        present in the prose is one the model invented.
-        """
-        values: list[str] = []
-        request = state.request
-        values.extend([str(request.amount), request.currency, request.invoice_reference])
-        if request.net_amount is not None:
-            values.append(str(request.net_amount))
-        if request.tax_amount is not None:
-            values.append(str(request.tax_amount))
-        if request.invoice_date is not None:
-            values.append(request.invoice_date.isoformat())
-        if request.po_reference:
-            values.append(request.po_reference)
-        if state.payable_on is not None:
-            values.append(state.payable_on.isoformat())
-        if state.proposed_payment_run is not None:
-            values.append(state.proposed_payment_run.isoformat())
-        for calculation in state.calculations:
-            values.append(str(calculation.result))
-            values.extend(str(value) for value in calculation.inputs.values())
-        for exception in state.exceptions:
-            values.extend([exception.expected, exception.observed, exception.detail])
-        for record in state.invoice_history:
-            values.extend([record.record_id, record.invoice_reference, str(record.gross_amount)])
-        for line in request.lines:
-            values.extend([str(line.quantity), str(line.unit_price), str(line.line_total)])
-        # Identifiers, because they contain digit runs and the figure check cannot tell an
-        # approver reference from a fabricated amount. Naming the approver is exactly what a
-        # correct summary does, so leaving these out made the check flag good prose: a unit
-        # test on "the invoice has been approved by U-3081" caught it.
-        values.extend(
-            value
-            for value in (
-                request.vendor_id,
-                request.requested_by,
-                request.cost_centre,
-                state.run_id,
-                state.approval_id,
-            )
-            if value
-        )
-        if state.delegation is not None:
-            values.extend([state.delegation.delegation_id, state.delegation.delegate_id])
-        if state.vendor is not None:
-            values.append(state.vendor.vendor_id)
-        if state.purchase_order is not None:
-            values.append(state.purchase_order.po_reference)
-        return values
-
-    @staticmethod
-    def _deterministic_summary(state: RunState, outcome: Outcome) -> str:
-        """A summary built from computed facts, with no model involvement."""
-        categories = sorted({exception.category.value for exception in state.exceptions})
-        indicators = [indicator.code for indicator in state.fraud_indicators]
-        parts = [f"The rule engine computed {outcome.value} from the control results."]
-        if categories:
-            parts.append("Exceptions raised: " + ", ".join(categories) + ".")
-        else:
-            parts.append("No exceptions were raised.")
-        if indicators:
-            parts.append("Fraud indicators: " + ", ".join(indicators) + ".")
-        if state.unknowns:
-            parts.append(f"{len(state.unknowns)} item(s) remain unknown.")
-        parts.append(
-            "This summary was generated from the computed results because the model's prose "
-            "was screened out."
-        )
-        return " ".join(parts)[:1_190]
-
-    @staticmethod
-    def _with_payment_schedule(state: RunState, next_action: str, outcome: Outcome) -> str:
-        """Append the engine-computed payment schedule to the next action.
-
-        The model writes the prose and never the date. FIN-POL-006 §2 schedules an approved
-        invoice for a standard run before its due date, and that run is computed by
-        ``rules/payment_terms.py`` from the agreed terms; a date produced by a model would be
-        arithmetic taken from the model, which is what FIN-POL-002 §5 and this system's whole
-        division of labour forbid.
-
-        Appended rather than substituted because the model's sentence says what a person
-        should *do* and this says when the payment would land. Only for an approval: naming a
-        run date on a rejected or held case would describe a payment that is not going to
-        happen.
-        """
-        if outcome is not Outcome.APPROVE_FOR_POSTING or state.payable_on is None:
-            return next_action
-        if state.proposed_payment_run is None:
-            schedule = (
-                f" The invoice is payable {state.payable_on.isoformat()} and no standard "
-                "payment run falls before that date, so scheduling is for Accounts Payable to "
-                "resolve; internal delay alone is not grounds for a manual payment "
-                "(FIN-POL-006 §3)."
-            )
-        else:
-            schedule = (
-                f" Proposed payment run {state.proposed_payment_run.isoformat()}, ahead of the "
-                f"due date {state.payable_on.isoformat()} (FIN-POL-006 §2). A proposal only: "
-                "an agent may prepare a schedule and may not release a payment file."
-            )
-        return truncate_detail(next_action.rstrip() + schedule)
-
-    @staticmethod
-    def _deterministic_next_action(state: RunState, outcome: Outcome) -> str:
-        if outcome is Outcome.APPROVE_FOR_POSTING:
-            # The proposed run is named when one exists. FIN-POL-006 §2 schedules an approved
-            # invoice for the next standard run before its due date, and a next action that
-            # says "the next standard run" without saying which one leaves the reader to
-            # recompute a date the engine has already computed.
-            if state.proposed_payment_run is not None:
-                schedule = (
-                    f"then post and schedule for the standard payment run on "
-                    f"{state.proposed_payment_run.isoformat()}, ahead of the due date "
-                    f"{state.payable_on.isoformat() if state.payable_on else 'not computed'} "
-                    "(FIN-POL-006 §2). Proposal only: an agent may not release a payment file."
-                )
-            else:
-                schedule = (
-                    "then post. No standard payment run remains before the due date, so "
-                    "scheduling is for Accounts Payable to resolve; internal delay alone is "
-                    "not grounds for a manual payment (FIN-POL-006 §3)."
-                )
-            return (
-                "Route to an approver holding at least the required delegated authority, "
-                + schedule
-            )
-        if outcome is Outcome.ESCALATE_CONTROL_REVIEW:
-            return (
-                "Refer to Financial Crime and Controls without notifying the supplier of "
-                "the suspicion (FIN-POL-007 §3)."
-            )
-        if outcome in {Outcome.REJECT_DUPLICATE, Outcome.REJECT_INVALID}:
-            return (
-                "Route the rejection to an approver, then notify the requester with the "
-                "cited records."
-            )
-        return (
-            "Route each exception to the owner named in its record and resume from the "
-            "failed control when new evidence arrives."
-        )
+        return deterministic_summary(state, outcome), deterministic_next_action(state, outcome)
 
     @staticmethod
     def _without_superseded_unknowns(state: RunState, candidates: list[Unknown]) -> list[Unknown]:
@@ -1157,9 +1017,9 @@ class Orchestrator:
             request=state.request,
             policy_chunks=state.policy_chunks,
             evidence_chunks=state.evidence_chunks,
-            vendor_summary=self._vendor_summary(state),
-            order_summary=self._order_summary(state),
-            history_summary=self._history_summary(state),
+            vendor_summary=vendor_summary(state),
+            order_summary=order_summary(state),
+            history_summary=history_summary(state),
             nonce=nonce,
         )
         synthesis = self._call_model(state, emitter, prompt, EvidenceSynthesis)
@@ -1348,7 +1208,7 @@ class Orchestrator:
 
         requires_approval = final_outcome.is_consequential
         summary, next_action = self._screen_narrative(state, emitter, narrative, final_outcome)
-        next_action = self._with_payment_schedule(state, next_action, final_outcome)
+        next_action = with_payment_schedule(state, next_action, final_outcome)
         recommendation = Recommendation(
             outcome=final_outcome,
             summary=summary,
@@ -1403,7 +1263,7 @@ class Orchestrator:
         )
 
         if requires_approval:
-            self._create_approval(state, emitter, recommendation)
+            create_approval(self._repository, self._clock, state, emitter, recommendation)
 
     def _phase_execute_decision(
         self,
@@ -1513,63 +1373,6 @@ class Orchestrator:
 
     # ---- approval handling -------------------------------------------------------------
 
-    def _create_approval(
-        self, state: RunState, emitter: EventEmitter, recommendation: Recommendation
-    ) -> None:
-        """Create the pending approval and stop.
-
-        The record captures what the approver will be shown, not only what they decide.
-        FIN-POL-003 §5 requires the approver to see the amount, vendor, exceptions and
-        citations before deciding, and storing what was presented is how that requirement
-        becomes auditable after the fact.
-        """
-        if state.approval_id is not None:
-            existing = self._repository.load_approval(state.approval_id)
-            if existing is not None:
-                return
-
-        invoice = state.request.to_invoice()
-        request = ApprovalRequest(
-            approval_id=new_approval_id(),
-            run_id=state.run_id,
-            case_id=state.case_id,
-            requested_outcome=recommendation.outcome,
-            presented_amount=invoice.gross_amount,
-            presented_currency=invoice.currency,
-            presented_vendor=invoice.vendor_name,
-            presented_vendor_id=invoice.vendor_id,
-            presented_exception_categories=[
-                exception.category for exception in recommendation.exceptions
-            ],
-            presented_citations=recommendation.cited_evidence[:12],
-            required_role_minimum=state.required_role_minimum,
-            higher_risk_reasons=list(state.higher_risk_reasons),
-            # FIN-POL-003 §3: two approvals for a higher-risk transaction, one of them from
-            # Financial Control. Recorded as a requirement the gate enforces, not as a flag
-            # nobody reads.
-            required_signature_count=2 if recommendation.requires_second_approval else 1,
-            requires_financial_control=recommendation.requires_second_approval,
-            created_at=self._clock(),
-        )
-        self._repository.create_approval(request)
-        state.approval_id = request.approval_id
-        emitter.emit(
-            EventType.APPROVAL_REQUESTED,
-            payload={
-                "approval_id": request.approval_id,
-                "requested_outcome": request.requested_outcome.value,
-                "amount": str(request.presented_amount),
-                "currency": request.presented_currency,
-                "requires_second_approval": request.requires_second_approval,
-                "presented_exception_categories": [
-                    category.value for category in request.presented_exception_categories
-                ],
-                "presented_citation_count": len(request.presented_citations),
-            },
-            phase=RunPhase.RECOMMEND,
-            outcome="AWAITING_HUMAN_DECISION",
-        )
-
     def _resolve(
         self, run_id: str, decision: ApprovalDecision, status: ApprovalStatus
     ) -> tuple[RunState, bool]:
@@ -1604,7 +1407,7 @@ class Orchestrator:
         # budget on a question already answered, and re-deriving the verdict invites a
         # different answer if the register changed in between. A duplicate delivery must be
         # inert, not merely harmless.
-        replay = self._short_circuit_replay(state, emitter, approval, decision, status)
+        replay = short_circuit_replay(self._repository, state, emitter, approval, decision, status)
         if replay is not None:
             return replay
 
@@ -1792,86 +1595,6 @@ class Orchestrator:
         state = self._repository.save_run(state)
         return self._drive(state, emitter), replayed
 
-    def _short_circuit_replay(
-        self,
-        state: RunState,
-        emitter: EventEmitter,
-        approval: ApprovalRequest,
-        decision: ApprovalDecision,
-        status: ApprovalStatus,
-    ) -> tuple[RunState, bool] | None:
-        """Handle a delivery that changes nothing, before anything is spent on it.
-
-        Returns the answer when the delivery is a replay, and raises when it contradicts a
-        settled decision. Returns ``None`` when the delivery has work to do and the caller
-        should proceed.
-
-        One approver approving and another rejecting the same request is a real disagreement,
-        so it raises rather than being resolved by arrival order.
-
-        The first test is the approver's own signature, and it comes before the status tests
-        deliberately. An earlier version asked only whether the approval was settled, so a
-        repeated delivery against a *pending* two-signature approval — the commonest retry
-        there is, since the caller has not seen the gate open — spent a tool call re-reading
-        the authority register and re-validated authority before the signature table's primary
-        key detected the duplicate. Nothing was recorded twice, but the claim made in three
-        places that a duplicate delivery performs no validation and no tool call was untrue
-        for exactly the case where retries are most likely.
-        """
-        if status is ApprovalStatus.APPROVED and any(
-            signature.approver_id == decision.approver_id for signature in approval.signatures
-        ):
-            emitter.emit(
-                EventType.APPROVAL_REPLAYED,
-                payload={
-                    "approval_id": approval.approval_id,
-                    "status": approval.status.value,
-                    "approver_id": decision.approver_id,
-                    "signatures_collected": approval.signatures_collected,
-                    "note": (
-                        "this approver has already signed; no validation, no tool call, no "
-                        "state change"
-                    ),
-                },
-                phase=state.phase,
-                outcome="REPLAYED",
-            )
-            return self._repository.require_run(state.run_id), True
-        if approval.status is ApprovalStatus.REJECTED:
-            if status is ApprovalStatus.REJECTED:
-                emitter.emit(
-                    EventType.APPROVAL_REPLAYED,
-                    payload={
-                        "approval_id": approval.approval_id,
-                        "status": approval.status.value,
-                        "originally_decided_by": approval.decided_by,
-                        "note": "duplicate rejection; no validation or state change",
-                    },
-                    phase=state.phase,
-                    outcome="REPLAYED",
-                )
-                return self._repository.require_run(state.run_id), True
-            raise ApprovalStateConflict(
-                f"approval {approval.approval_id} is already REJECTED and cannot be changed "
-                "to APPROVED"
-            )
-
-        if approval.status is ApprovalStatus.APPROVED:
-            if status is ApprovalStatus.REJECTED:
-                raise ApprovalStateConflict(
-                    f"approval {approval.approval_id} is already APPROVED and cannot be "
-                    "changed to REJECTED"
-                )
-            # A repeat from an approver who already signed was answered above, whatever the
-            # status. Reaching here means a *different* person is approving something already
-            # settled, which is not a replay: the requirement was met without them.
-            raise ApprovalStateConflict(
-                f"approval {approval.approval_id} is already APPROVED; its signature "
-                "requirement was met and the decision has been settled"
-            )
-
-        return None
-
     def _load_delegation(
         self, state: RunState, emitter: EventEmitter, decision: ApprovalDecision
     ) -> DelegationRecord | None:
@@ -2009,57 +1732,6 @@ class Orchestrator:
         return citations
 
     # ---- summaries supplied to the model ------------------------------------------------
-
-    @staticmethod
-    def _vendor_summary(state: RunState) -> str:
-        vendor = state.vendor
-        if vendor is None:
-            return "  (no vendor master record was returned)"
-        return "\n".join(
-            [
-                f"  vendor_id: {vendor.vendor_id}",
-                f"  legal_name: {vendor.legal_name}",
-                f"  status: {vendor.status.value}",
-                f"  bank_account_last4: {vendor.bank_account_last4 or '(none on file)'}",
-                f"  bank_country: {vendor.bank_country or '(unknown)'}",
-                f"  bank_details_changed_at: {vendor.bank_details_changed_at or '(never)'}",
-                f"  created_at: {vendor.created_at}",
-                f"  risk_flags: {vendor.risk_flags or '(none)'}",
-                f"  on_payment_hold: {vendor.on_payment_hold}",
-            ]
-        )
-
-    @staticmethod
-    def _order_summary(state: RunState) -> str:
-        order = state.purchase_order
-        if order is None:
-            return "  (no purchase order was available)"
-        lines = [
-            f"  po_reference: {order.po_reference}",
-            f"  currency: {order.currency}",
-            f"  total_value: {order.total_value}",
-            f"  approval_status: {order.approval_status}",
-            f"  line_count: {len(order.lines)}",
-            f"  receipt_count: {len(order.receipts)}",
-        ]
-        for line in order.lines:
-            lines.append(
-                f"    line {line.line_number} ({line.line_type.value}): "
-                f"ordered {line.quantity_ordered} at {line.unit_price} "
-                f"= {line.line_value}, received "
-                f"{order.quantity_received_for(line.line_number)}"
-            )
-        return "\n".join(lines)
-
-    @staticmethod
-    def _history_summary(state: RunState) -> str:
-        if not state.invoice_history:
-            return "  (no prior records on file for this vendor)"
-        return "\n".join(
-            f"  {record.record_id}: {record.invoice_reference}, {record.gross_amount} "
-            f"{record.currency}, {record.invoice_date}, status {record.status.value}"
-            for record in state.invoice_history
-        )
 
     # ---- terminal handling --------------------------------------------------------------
 
