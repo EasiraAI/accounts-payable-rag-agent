@@ -51,6 +51,44 @@ query pattern here. Determinism matters more: retrieval grounding tests must run
 without a model or network. Metadata re-ranking is what actually handles the traps; no
 embedding model knows that version 1.0 is superseded.
 
+### The hybrid mode, measured
+
+**Status: implemented and measured. It was neither when this record was first written.**
+
+The flag existed, validated, appeared in the manifest and was described here and in five other
+documents. No embedding code, no fusion and no dense path existed anywhere in the source.
+Turning it on changed nothing and reported success, which is worse than an unimplemented
+option: a reader had six documents telling them a capability was available.
+
+It is now implemented in `rag/dense.py`: `bge-small-en-v1.5` embeddings persisted in the index
+JSON, fused with the lexical ordering by reciprocal rank (k=60, twenty candidates a side), and
+a hard refusal when the mode is on and the index carries no embeddings. There is deliberately
+no fallback, because a silent fallback is how the original defect stayed invisible.
+
+Measured over the same golden set, which now contains paraphrase and unanswerable queries:
+
+| | Direct (16) | Paraphrase (8) |
+|---|---|---|
+| BM25 | Hit@1 0.94 · Hit@3 1.00 · MRR 0.969 | Hit@3 0.38 |
+| Hybrid | Hit@1 0.94 · Hit@3 0.94 · MRR 0.938 | Hit@3 0.50 |
+
+**The default stays lexical**, now for a measured reason rather than an argued one. Hybrid
+recovers one paraphrase query in eight and loses one direct query in sixteen, and on this corpus
+the direct queries are the ones a run actually issues.
+
+The mechanism behind the regression is worth recording, because it is a property of rank fusion
+rather than of the embedding model. Fusion uses only each retriever's *ordering*, discarding
+BM25's score margin. On terminology-dense policy text that margin is informative: the gap
+between the right section and the second-best is large, and throwing it away lets a dense
+opinion of middling confidence displace a lexical result of high confidence. The published k=60
+makes this worse at this scale, since it was calibrated for result lists a thousand deep and
+compresses twenty candidates into the third decimal place. k is left at the published value
+rather than fitted to sixteen queries, and the trade-off is recorded rather than tuned away.
+
+The condition for turning the flag on is unchanged and now quantified: a corpus large enough,
+or a query mix paraphrased enough, that 0.38 paraphrase recall costs more than 0.06 direct
+precision.
+
 ### A correction worth recording
 
 An earlier draft of this record said the index was persisted as a pickle. It is JSON, and the

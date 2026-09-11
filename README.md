@@ -11,11 +11,12 @@ path. Posting targets a simulated ledger and every receipt is stamped `simulated
 | | |
 |---|---|
 | Environment | Local. No cloud resources, no network call in the default configuration |
-| Tests | 604 passing, plus 1 live-model test excluded by default |
+| Tests | 669 passing, plus 1 live-model test excluded by default |
 | Fixture cases | 5 of 5 (FIN-001 to FIN-005) |
-| Retrieval | Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 golden queries, 0 leaks |
-| Types / lint | mypy strict clean, 57 modules; ruff clean |
+| Retrieval | Direct Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16 queries. Paraphrase Hit@3 0.38 over 8. 5 unanswerable, 0 leaks |
+| Types / lint | mypy strict clean, 59 modules; ruff clean |
 | Corpus | 15 documents, 58 section chunks |
+| Generation | 5/5 narratives grounded: every figure in the model's prose traces to a computed value |
 | Time spent | About 5 hours against an 8-hour timebox. The git history spans 11:22 to 15:33 on 11 September 2026; reading the corpus and planning came before the first commit |
 
 Counts produced on Windows 11, Python 3.14.3, 11 September 2026. Reproduce with `ap-agent eval`
@@ -119,7 +120,13 @@ An API key is needed only for the optional live tier (section 6).
 uv sync                        # .venv from uv.lock; prefix any command below with `uv run`
 ```
 
-Optional hybrid dense retrieval (adds ~100 MB of weights): `uv sync --extra hybrid`.
+Optional hybrid retrieval adds a dense side (adds ~100 MB of weights). It is off by
+default, and section 7 gives the measurement that is the reason why:
+
+```bash
+uv sync --extra hybrid
+AP_RETRIEVAL_MODE=hybrid ap-agent ingest --force   # the index must carry embeddings
+```
 
 ### Ingestion and indexing
 
@@ -144,7 +151,7 @@ Every setting has a working default, so the system runs with no environment file
 | `ANTHROPIC_API_KEY` | unset | Required only when the provider is `anthropic`. |
 | `AP_MAX_STEPS` | `12` | Phase ceiling. Exceeding it fails the run explicitly. |
 | `AP_MAX_TOOL_CALLS` | `16` | Tool-attempt ceiling. Retries spend it. |
-| `AP_RETRIEVAL_MODE` | `bm25` | `hybrid` adds local dense embeddings. |
+| `AP_RETRIEVAL_MODE` | `bm25` | `hybrid` fuses local dense embeddings with BM25 by reciprocal rank. Requires the extra and an index rebuilt with embeddings; the retriever refuses rather than falling back. |
 | `AP_SUPERSEDED_SCORE_FACTOR` | `0.3` | How far a superseded policy document is demoted. |
 | `AP_DB_PATH` | `./data/runtime/ap_agent.db` | SQLite file. |
 
@@ -201,9 +208,9 @@ ap-agent eval --transcripts docs/samples --report docs/samples/eval_report.json
 
 | Tier | Location | Count | Model | Protects |
 |---|---|---:|---|---|
-| Unit | `tests/unit` | 291 | none | Rule thresholds at their boundaries, redaction, property-based invariants |
-| Contract | `tests/contract` | 161 | none | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
-| Evaluation | `tests/eval` | 152 | deterministic | Retrieval grounding, the five cases, safety properties |
+| Unit | `tests/unit` | 339 | none | Rule thresholds at their boundaries, redaction, rank fusion, narrative screening, property-based invariants |
+| Contract | `tests/contract` | 171 | none | Typed schemas, tool reliability, persistence and idempotency, hybrid wiring, HTTP surface |
+| Evaluation | `tests/eval` | 159 | deterministic | Retrieval grounding, the five cases, generation grounding, safety properties |
 | Live model | marked `live_model` | 1 | Claude | The same cases through a real model |
 
 **Live tier (requires external access).** Excluded by default; nothing in the first three tiers
@@ -214,7 +221,39 @@ export ANTHROPIC_API_KEY=...
 ap-agent eval --provider anthropic && uv run pytest -q -m live_model
 ```
 
-## 7. Integrations: real, mocked, or external
+## 7. What is measured, and what it says
+
+Retrieval and generation are measured separately, and the golden set is built so it can fail
+for the reason each side actually fails.
+
+**Three kinds of query.** `direct` uses the corpus's own vocabulary and carries the gate.
+`paraphrase` asks the same questions in an analyst's words. `negative` asks what the corpus
+cannot answer. Averaging them would flatter one and understate the other, so they are reported
+apart.
+
+| | Direct (16) | Paraphrase (8) | Unanswerable (5) |
+|---|---|---|---|
+| BM25, the default | Hit@1 0.94 · Hit@3 1.00 · MRR 0.969 | Hit@3 0.38 | 0 distractor leaks |
+| Hybrid, behind the flag | Hit@1 0.94 · Hit@3 0.94 · MRR 0.938 | Hit@3 0.50 | 0 distractor leaks |
+
+Hybrid buys paraphrase recall and costs direct precision, which is why the default is lexical:
+rank fusion discards BM25's score margin, and on terminology-dense policy text that margin
+carries real signal. Paraphrase recall of 0.38 is the honest cost of the lexical choice, and
+the number that would justify turning the flag on if the corpus grew.
+
+**A score floor does not work here.** The obvious use for unanswerable queries is to calibrate
+a minimum score below which the retriever returns nothing. The highest-scoring unanswerable
+query outscores the lowest-scoring answerable one, so any floor that silenced the first would
+silence the second. That is asserted as a test, so the idea is refuted by data rather than
+re-proposed.
+
+**Generation is measured, not just constrained.** Every figure in the model's prose must trace
+to a value the engine computed, and approval or immediate-payment claims are crossed against
+what the run actually recorded. The report carries `narrative_grounded` per case with the
+reason when it fails, and ten adversarial rephrasings report a false-negative rate rather than
+a claim of thoroughness.
+
+## 8. Integrations: real, mocked, or external
 
 | Component | Status | Detail |
 |---|---|---|
@@ -227,12 +266,12 @@ ap-agent eval --provider anthropic && uv run pytest -q -m live_model
 | Claude (`anthropic`) | **External access** | Live calls. Not in the default test run. |
 | Deterministic adapter (`fake`) | **Real, local** | Default. No network. |
 | Persistence · HTTP API | **Real** | SQLite WAL on the local filesystem; FastAPI on uvicorn. |
-| Hybrid dense retrieval | **Optional install** | `uv sync --extra hybrid`. Off by default. |
+| Hybrid dense retrieval | **Real, optional install** | `bge-small-en-v1.5` fused with BM25 by reciprocal rank. Off by default; measured in section 7. |
 
 Mocked backends inject faults per case from `fault_profiles.json`. FIN-004 genuinely cannot
 reach the purchasing system, and the failure travels the code path a real outage would.
 
-## 8. Flows
+## 9. Flows
 
 | Flow | Behaviour | Evidence |
 |---|---|---|
@@ -247,7 +286,7 @@ reach the purchasing system, and the failure travels the code path a real outage
 | Payment schedule | Agreed terms from the PO override printed terms; due date moved to the *preceding* business day; a Tuesday or Thursday run proposed, never released | `rules/payment_terms.py` |
 | Restart and resume | A run stopped at the gate resumes in a different process from persisted state | `test_safety.py::TestRestartAndResume` |
 
-## 9. Assumptions
+## 10. Assumptions
 
 1. **A sixth tool.** The brief names five; `get_authority_delegation` is separate because
    FIN-POL-003 §4 makes a delegation valid only if it is in the authority register with
@@ -269,11 +308,11 @@ reach the purchasing system, and the failure travels the code path a real outage
    are committed, dependencies are pinned in `uv.lock`, and
    `uv run python scripts/secret_sweep.py` proves it rather than asserting it.
 
-## 10. Known limitations
+## 11. Known limitations
 
 | Area | Limitation |
 |---|---|
-| Retrieval | Lexical by default, so an all-synonym query can miss, and BM25 cannot express negation. Parameters are library defaults; tuning on 15 documents would fit the golden set. |
+| Retrieval | Lexical by default, and paraphrase recall is measured at 0.38: four of eight paraphrase queries miss entirely. BM25 cannot express negation. Parameters are library defaults; tuning on 15 documents would fit the golden set. |
 | Permission filtering | FIN-POL-010 §3 is modelled as a metadata filter on `classification`, not enforced against an identity provider. |
 | Injection detection | A clause-anchored heuristic, not a parser. Passive voice, another language or encoding would evade it. This is why it is a secondary control; section 11 holds the structural ones. |
 | Calendar | No public-holiday calendar in the corpus, so business-day arithmetic skips weekends only. Review and payment-run dates are indicative. |
@@ -285,7 +324,7 @@ reach the purchasing system, and the failure travels the code path a real outage
 | Non-PO justification | FIN-POL-001 §2 accepts a PO *or* an approved justification; the schema has no field for the second, so the finding says it cannot be assessed. |
 | Authentication | None. The service binds to localhost and the approval endpoints are open to anyone who reaches the host. Not deployable as-is. |
 
-## 11. Safety properties, and where they are enforced
+## 12. Safety properties, and where they are enforced
 
 | Property | Mechanism | Test |
 |---|---|---|
@@ -302,18 +341,20 @@ reach the purchasing system, and the failure travels the code path a real outage
 | Model output is never trusted unvalidated | One structured method, one repair, then explicit failure | `TestModelFailureHandling` |
 | No unmasked account or credential is logged | One redaction path for every event and log line | `TestSafeLogging` |
 | Untrusted text cannot escape its block | Nonce fencing, forged delimiters stripped | `test_a_forged_prompt_delimiter_is_neutralised` |
+| Model prose cannot assert an approval that did not happen | Claims crossed with recorded state, and every figure crossed with the computed set | `TestAdversarialBreadth` |
+| A configured retrieval mode cannot silently do nothing | The retriever refuses hybrid against an index with no embeddings, and the manifest reports behaviour not configuration | `TestTheFlagCannotBeSilentlyIgnored` |
 
-## 12. Layout
+## 13. Layout
 
 ```
 finance_rag_corpus/   policy corpus (input to ingestion; not modified)
 src/ap_agent/
   config/             Settings; the only place a provider or model is named
   domain/             typed contracts, run state, rules/ (12 pure Decimal modules)
-  rag/                ingestion, BM25 index, metadata-aware retriever
+  rag/                ingestion, BM25 index, optional dense side, retriever
   tools/              six tool contracts, the runner, simulated backends
   llm/                LLMClient protocol, adapters, prompt fencing, output schemas
-  orchestration/      phase plan, budgets, approval gate, state machine
+  orchestration/      phase plan, budgets, approval gate, narrative screen, state machine
   persistence/        SQLite repository and schema
   observability/      redaction and structured events
   evaluation/         retrieval measurement and the fixture runner
@@ -325,7 +366,7 @@ docs/                 design note, ADRs, manifest, diagrams, samples, references
 infra/ scripts/       container and compose files; setup, sample rendering, secret sweep
 ```
 
-## 13. Documentation
+## 14. Documentation
 
 | Document | Contents |
 |---|---|
@@ -339,7 +380,7 @@ infra/ scripts/       container and compose files; setup, sample rendering, secr
 | [specs/](docs/specs/) · [plans/](docs/plans/) | The design and plan as proposed. Historical; kept for the alternatives they weigh |
 | [AI_USAGE_DECLARATION.md](docs/AI_USAGE_DECLARATION.md) | Where AI assistance was used and how its output was controlled |
 
-## 14. Cost
+## 15. Cost
 
 No cloud resources. The default configuration makes no network call and costs nothing.
 

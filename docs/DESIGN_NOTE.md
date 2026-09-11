@@ -169,7 +169,8 @@ rather than paraphrasing it: "three-way match tolerance", "delegated authority",
 receipt" are not synonyms of the corpus, they are extracts from it. BM25 scores exactly that
 overlap and does so deterministically, so the grounding tests run in continuous integration
 with no model, no network and no flaky ranking. Dense retrieval earns its place on
-paraphrased queries, which is why a hybrid mode exists behind a flag; it is not the default
+paraphrased queries, and that cost is now measured rather than asserted: paraphrase recall
+is 0.38 against 1.00 on direct queries. A hybrid mode exists behind a flag; it is not the default
 because adding a 100 MB download to improve recall on paraphrases the corpus does not contain
 would be paying a cost for an undemonstrated benefit. The index is JSON rather than a pickle,
 so the retrieval path never deserialises executable content from disk.
@@ -429,9 +430,9 @@ Three tiers, separated by what they depend on rather than by speed.
 
 | Tier | Count | Depends on | Protects |
 |---|---|---|---|
-| Unit | 291 | nothing | Rule thresholds at their boundaries, redaction, property-based invariants |
-| Contract | 161 | nothing | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
-| Evaluation | 152 | deterministic adapter | Retrieval grounding, the five cases, safety properties |
+| Unit | 339 | nothing | Rule thresholds at their boundaries, redaction, property-based invariants |
+| Contract | 171 | nothing | Typed schemas, tool reliability, persistence and idempotency, HTTP surface |
+| Evaluation | 159 | deterministic adapter | Retrieval grounding, the five cases, safety properties |
 | Live model | 1 | external access | The same cases through a real model |
 
 Fixture assertions live in the fixture files, so the expected control behaviour is declared

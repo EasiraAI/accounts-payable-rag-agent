@@ -5,8 +5,8 @@ version of the same information is served by `GET /manifest` and printed by
 `ap-agent manifest`; that one is generated from the running configuration, so it cannot
 describe a system other than the one answering the request.
 
-Verified against commit state: 15 corpus documents, 58 chunks, 604 tests passing, 5 of 5
-fixture cases passing.
+Verified against commit state: 15 corpus documents, 58 chunks, 669 tests passing, 5 of 5
+fixture cases passing, 5 of 5 narratives grounded.
 
 ---
 
@@ -54,7 +54,9 @@ Provider and model names appear in `config/settings.py` and nowhere else in the 
 | Index | BM25Okapi over lemmatised tokens | `AP_RETRIEVAL_MODE=bm25` | `rag/index.py` |
 | Persisted as | JSON, not a pickle | `AP_INDEX_DIR` | `rag/index.py` |
 | Staleness detection | SHA-256 of corpus file names and bytes | n/a | `rag/ingest.py` |
-| Optional hybrid mode | local dense embeddings fused by reciprocal rank | `AP_RETRIEVAL_MODE=hybrid` plus the `hybrid` extra | `rag/index.py` |
+| Optional hybrid mode | `bge-small-en-v1.5` embeddings fused with BM25 by reciprocal rank (k=60, 20 candidates each) | `AP_RETRIEVAL_MODE=hybrid` plus the `hybrid` extra, and an index rebuilt with embeddings | `rag/dense.py`, `rag/retriever.py` |
+| Hybrid without embeddings | refused at construction; never falls back to lexical | n/a | `rag/retriever.py` |
+| Embedding storage | in the index JSON, rounded to 6 places, never a pickle | n/a | `rag/index.py` |
 | Top-k | 6 | `AP_RETRIEVAL_TOP_K` | `config/settings.py` |
 | Superseded demotion | score multiplied by 0.3 | `AP_SUPERSEDED_SCORE_FACTOR` | `rag/retriever.py` |
 | Type filtering | policy lookups return `policy` only | n/a | `rag/retriever.py` |
@@ -169,6 +171,9 @@ well-behaved caller into retrying a normal event.
 | One decision per invoice, across runs | `persistence/schema.sql` | `TestOneDecisionPerInvoiceAcrossRuns` |
 | A store from a newer build is refused | `persistence/repository.py` | `TestSchemaVersioning`, `TestMigrationCrashWindows` |
 | No credential-shaped string is committed | `scripts/secret_sweep.py` | run it; exits non-zero on any finding |
+| Model prose cannot assert an unrecorded approval | `orchestration/narrative_screen.py` | `TestAdversarialBreadth` |
+| Every figure in the prose traces to a computed value | `orchestration/narrative_screen.py`, `orchestration/machine.py` (`_computed_values`) | `TestFigureGrounding` |
+| A configured retrieval mode cannot do nothing | `rag/retriever.py`, `composition.py` | `TestTheFlagCannotBeSilentlyIgnored` |
 
 ## 8. Observability
 
@@ -188,9 +193,9 @@ well-behaved caller into retrying a normal event.
 
 | Tier | Command | Count | Model | Network |
 |---|---|---:|---|---|
-| Unit | `pytest tests/unit` | 291 | none | none |
-| Contract | `pytest tests/contract` | 161 | none | none |
-| Evaluation | `pytest tests/eval` | 152 | deterministic adapter | none |
+| Unit | `pytest tests/unit` | 339 | none | none |
+| Contract | `pytest tests/contract` | 171 | none | none |
+| Evaluation | `pytest tests/eval` | 159 | deterministic adapter | none |
 | Live model | `pytest -m live_model` | 1 | Claude | required |
 | Fixture cases | `ap-agent eval` | 5 cases | deterministic adapter | none |
 | Retrieval quality | included in `ap-agent eval` | 16 queries | none | none |

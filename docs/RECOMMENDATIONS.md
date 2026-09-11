@@ -164,7 +164,22 @@ None of that can be honoured without a queue that knows a case's age and owner. 
 records already carry the owner and the review date, so the data model is ready; what is
 missing is something that reads it and acts.
 
-## 12. Raise the tool budget derivation to account for a second signature
+## 12. Contextual chunk annotation, if paraphrase recall has to improve
+
+**Gap.** Paraphrase recall is 0.38 and hybrid retrieval buys only 0.50 at the cost of direct
+precision, so neither option is currently worth switching on. The technique that would help
+without a model at query time is prepending a short situating sentence to each chunk before
+indexing, so a section inherits its document's vocabulary.
+
+**Change.** Generate the situating line deterministically from the front matter already parsed
+at ingestion (document title, section heading, tags) rather than with a model, keeping ingestion
+free of a provider. Measure on the paraphrase set; keep only if it moves.
+
+**Why here.** It is the cheapest remaining lever on the one retrieval number that is weak, and
+unlike the hybrid flag it costs nothing at query time. It is below the reliability items because
+0.38 is a measured cost of a deliberate choice, not a defect.
+
+## 13. Raise the tool budget derivation to account for a second signature
 
 **Gap.** The default of sixteen tool attempts is derived from the worst case of a single
 approval. A two-signature approval resolves twice, and each resolution naming a delegation
@@ -178,7 +193,7 @@ assert the derivation in a test so the two cannot drift again.
 **Why here.** It is a correctness issue in a documented number rather than in behaviour, and
 it is visible only at a configuration boundary a deployment would raise anyway.
 
-## 13. A configurable tax profile
+## 14. A configurable tax profile
 
 **Gap.** `domain/rules/tax.py` carries one rate, one tolerance and an implicit assumption that
 a domestic invoice is an Australian one. The corpus states a jurisdiction and no rate, so a
@@ -190,7 +205,7 @@ and the exempt categories a supply may claim. The rule reads the profile; nothin
 **Why here.** Nothing derived from the rate blocks a case today, so this buys correctness of
 reporting rather than of decisions. It becomes urgent the moment a second jurisdiction appears.
 
-## 14. Cost budgets per run
+## 15. Cost budgets per run
 
 Token counts are recorded per model call, so a per-run ceiling is a gate over data the system
 already has rather than new instrumentation. Add it when the live provider is the default;
@@ -245,6 +260,11 @@ anything.
 | Delegation scope was stored and never compared | `domain/rules/authority.py` | FIN-POL-003 §4 |
 | Repeated non-PO purchasing was not detected | `domain/rules/non_po.py` | FIN-POL-012 §4 |
 | A credit note was processed as an invoice | Recognised and held for Financial Control | FIN-POL-008 §1 |
+| Hybrid retrieval was documented and absent | Implemented, measured in both modes, and refused rather than silently ignored when misconfigured | [adr/0003](adr/0003-retrieval-strategy.md) |
+| The golden set could not fail for the reason lexical retrieval fails | Paraphrase and unanswerable queries added; both reported apart from the gated numbers | `tests/eval/retrieval_golden.json` |
+| The narrative screen was a list of eight phrases | Claims crossed with recorded state, and every figure crossed with the computed set | `orchestration/narrative_screen.py` |
+| Generation quality had no measure at all | `narrative_grounded` per case, reported beside the retrieval metrics | `evaluation/runner.py` |
+| A provider failure reported an internal error with an invented retry history | The provider's own message, and a permanent status named as permanent | `llm/anthropic_client.py` |
 
 The pattern across them is worth naming, because it is the first thing I would look for in a
 system like this. Four of the ten were not missing code at all. They were fields or
