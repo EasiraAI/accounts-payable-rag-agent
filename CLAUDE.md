@@ -179,33 +179,36 @@ Data values may be adapted as long as the intent of each case is preserved.
 
 ## 7. Deliverables Checklist
 
-- [ ] Runnable source code + complete setup instructions that explicitly cover, as separate items:
-  - [ ] exact prerequisites
-  - [ ] environment variables
-  - [ ] model configuration
-  - [ ] ingestion/indexing steps
-  - [ ] start commands
-  - [ ] test/evaluation commands
-- [ ] README: environment choice, commands, model/API requirements, assumptions, supported flows,
+Every box below is ticked against a file that exists and a command that runs. The verification
+commands are in §15; the artefacts are listed with their locations in README §15.
+
+- [x] Runnable source code + complete setup instructions that explicitly cover, as separate items:
+  - [x] exact prerequisites
+  - [x] environment variables
+  - [x] model configuration
+  - [x] ingestion/indexing steps
+  - [x] start commands
+  - [x] test/evaluation commands
+- [x] README: environment choice, commands, model/API requirements, assumptions, supported flows,
       known limitations. Must clearly label, per tool/integration: **real**, **mocked**, or
       **requires external access to run**.
-- [ ] Design note (~1–2 pages): orchestration approach, RAG design, trust boundaries, model/tool
+- [x] Design note (~1–2 pages): orchestration approach, RAG design, trust boundaries, model/tool
       contracts, persistence, failure handling, and what would change for production.
-- [ ] Environment artefacts (two distinct items, both required):
-  - [ ] **Architecture diagram**.
-  - [ ] **Component/configuration manifest** — a separate artifact (doc, table, or config file)
+- [x] Environment artefacts (two distinct items, both required):
+  - [x] **Architecture diagram**.
+  - [x] **Component/configuration manifest** — a separate artifact (doc, table, or config file)
         explicitly showing: the model, the agent runtime, the document store/index, persistence,
         tools, the API surface, and trust boundaries.
-  - [ ] Plus, appropriate to the chosen environment: for local, reproducible scripts/containers/config;
+  - [x] Plus, appropriate to the chosen environment: for local, reproducible scripts/containers/config;
         for AWS/GCP, IaC where practical, or exported configuration/CLI commands and screenshots.
-- [ ] Automated tests (unit/contract tests separated from model-dependent eval runs).
-- [ ] Sample output/transcript for: (a) one successful flow, and (b) one exception/approval flow.
-- [ ] Cost/cleanup notes if any cloud resources are used.
+- [x] Automated tests (unit/contract tests separated from model-dependent eval runs).
+- [x] Sample output/transcript for: (a) one successful flow, and (b) one exception/approval flow.
+- [x] Cost/cleanup notes if any cloud resources are used.
 
 ### Repository hygiene (explicit PDF requirements)
-- [ ] No API keys, credentials, **personal data, or proprietary code** in the repo.
-- [ ] Dependencies pinned/locked.
-- [ ] Provide an example environment file (e.g. `.env.example`) **only if needed** — no real secrets.
+- [x] No API keys, credentials, **personal data, or proprietary code** in the repo.
+- [x] Dependencies pinned/locked.
+- [x] Provide an example environment file (e.g. `.env.example`) **only if needed** — no real secrets.
 
 ---
 
