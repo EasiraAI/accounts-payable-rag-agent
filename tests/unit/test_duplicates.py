@@ -301,3 +301,76 @@ class TestReusedInvoiceNumber:
         """The new signal must not demote an exact settled match to a hold."""
         result = duplicate_check(_invoice(), [_record()], as_of=AS_OF)
         assert result.recommended_outcome is Outcome.REJECT_DUPLICATE
+
+
+class TestCorrectedResubmission:
+    """FIN-POL-005 §2: a prior rejection does not prove a new invoice is a duplicate.
+
+    The first version of the reused-number signal held every corrected resubmission, which is
+    the one scenario §2 names: "the reason and corrected fields must be reviewed." A supplier
+    whose invoice was rejected, corrected and resubmitted under the same number is behaving
+    correctly.
+    """
+
+    def test_a_reused_number_against_a_rejected_record_is_not_a_match_on_its_own(self) -> None:
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0388", gross="9900.00"),
+            [_record(gross="9240.00", status=InvoiceHistoryStatus.REJECTED)],
+            as_of=AS_OF,
+        )
+        assert not result.has_any_match
+
+    def test_a_rejected_record_still_matches_on_the_other_signals(self) -> None:
+        """Excluding the number signal must not stop the case being checked at all."""
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0388"),
+            [_record(status=InvoiceHistoryStatus.REJECTED)],
+            as_of=AS_OF,
+        )
+        assert result.exact_matches
+        assert result.recommended_outcome is not Outcome.REJECT_DUPLICATE
+
+    def test_a_reused_number_against_a_held_record_is_still_a_match(self) -> None:
+        """Only a rejection carries §2's warning. A held record is still live."""
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0388", gross="9900.00"),
+            [_record(gross="9240.00", status=InvoiceHistoryStatus.HELD)],
+            as_of=AS_OF,
+        )
+        assert result.fuzzy_matches
+
+    def test_the_reason_names_the_status_of_the_record_matched(self) -> None:
+        """FIN-POL-005 §2 requires both record IDs cited; the status is why it matters."""
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0388", gross="9900.00"),
+            [_record(gross="9240.00", status=InvoiceHistoryStatus.PAID)],
+            as_of=AS_OF,
+        )
+        assert "PAID" in " ".join(result.fuzzy_matches[0].match_reasons)
+
+
+class TestAmountVarianceBoundary:
+    """FIN-POL-005 §1's 0.5% bound is strict, and must be tested unrounded.
+
+    The defect: the variance was quantized to four decimal places before the comparison, so a
+    value inside the bound that rounds up to it was treated as outside. A probable duplicate
+    went undetected because of a display decision.
+    """
+
+    def test_a_variance_just_inside_the_bound_is_a_fuzzy_match(self) -> None:
+        # 20,099.99 against 20,000.00 is 0.49995%, inside the bound, and rounds to 0.5000.
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0999", gross="20099.99"),
+            [_record(reference="INV-2026-0388", gross="20000.00")],
+            as_of=AS_OF,
+        )
+        assert result.fuzzy_matches
+
+    def test_a_variance_at_the_bound_is_not_a_fuzzy_match(self) -> None:
+        # 20,100.00 is exactly 0.5%, and the bound is strict.
+        result = duplicate_check(
+            _invoice(reference="INV-2026-0999", gross="20100.00"),
+            [_record(reference="INV-2026-0388", gross="20000.00")],
+            as_of=AS_OF,
+        )
+        assert not result.has_any_match

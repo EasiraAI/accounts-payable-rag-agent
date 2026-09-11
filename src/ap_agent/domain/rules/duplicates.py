@@ -26,8 +26,17 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ap_agent.domain.enums import EscalationOwner, ExceptionCategory, Outcome
-from ap_agent.domain.evidence import Invoice, InvoiceHistoryMatch
+from ap_agent.domain.enums import (
+    EscalationOwner,
+    ExceptionCategory,
+    InvoiceHistoryStatus,
+    Outcome,
+)
+from ap_agent.domain.evidence import (
+    Invoice,
+    InvoiceHistoryMatch,
+    normalise_invoice_reference,
+)
 from ap_agent.domain.money import quantize
 from ap_agent.domain.results import Calculation, ExceptionRecord, PolicyFinding
 from ap_agent.domain.rules._shared import next_review_date
@@ -62,28 +71,23 @@ class DuplicateResult(BaseModel):
 
 
 def _amount_variance_percent(candidate: Decimal, prior: Decimal) -> Decimal:
-    """Absolute variance between two amounts as a percentage of the prior amount."""
+    """Absolute variance between two amounts as a percentage of the prior amount.
+
+    Unrounded. FIN-POL-005 §1's 0.5% bound is strict, and an earlier version quantized to
+    four decimal places before comparing: 20,000.00 against 20,099.99 is 0.49995%, which is
+    inside the bound and rounds to 0.5000, which is not. A probable duplicate went undetected
+    because of a display decision. Rounding happens where the figure is displayed instead.
+    """
     if prior == 0:
         return Decimal("100")
-    return (abs(candidate - prior) / prior * Decimal("100")).quantize(Decimal("0.0001"))
-
-
-def _normalise_reference(reference: str) -> str:
-    """An invoice number reduced to its alphanumeric characters, upper-cased.
-
-    Shared by the exact and the fuzzy test so the two cannot disagree about what counts as
-    the same number. FIN-POL-005 §1 requires punctuation-stripped comparison; keeping one
-    implementation is what makes "INV-1001", "INV 1001" and "inv1001" one invoice number
-    everywhere in this module.
-    """
-    return "".join(char for char in reference if char.isalnum()).upper()
+    return abs(candidate - prior) / prior * Decimal("100")
 
 
 def _is_exact(invoice: Invoice, record: InvoiceHistoryMatch) -> bool:
     """FIN-POL-005 §1 exact match: vendor, normalised number, currency and gross amount."""
     return (
         invoice.vendor_id == record.vendor_id
-        and invoice.normalised_reference == _normalise_reference(record.invoice_reference)
+        and invoice.normalised_reference == normalise_invoice_reference(record.invoice_reference)
         and invoice.currency == record.currency
         and invoice.gross_amount == record.gross_amount
     )
@@ -106,18 +110,28 @@ def _fuzzy_reasons(invoice: Invoice, record: InvoiceHistoryMatch) -> list[str]:
         # Conclusive on its own: the identical document was submitted twice.
         return [f"identical attachment hash {sorted(shared_hashes)[0][:12]}"]
 
-    if invoice.normalised_reference == _normalise_reference(record.invoice_reference):
-        # FIN-POL-005 §1 names "punctuation-stripped invoice numbers" as a fuzzy signal in
-        # its own right. An earlier version reached this comparison only through the exact
-        # test, which also requires the currency and gross amount to agree, so a supplier who
-        # resubmitted "INV-1001" as "INV 1001" with a corrected amount matched neither test
-        # and was processed as a new invoice. The same vendor reusing an invoice number is
-        # strong on its own: invoice numbers are a supplier's own sequence, and a repeat is
-        # either a resubmission or a numbering fault. Either way it warrants a look.
+    number_matches = invoice.normalised_reference == normalise_invoice_reference(
+        record.invoice_reference
+    )
+    if number_matches and record.status is not InvoiceHistoryStatus.REJECTED:
+        # A reused invoice number, punctuation aside, against a record that was *not*
+        # rejected. FIN-POL-005 §1 lists punctuation-stripped numbers among the signals to
+        # consider; weighing this one on its own is this module's judgement, because an
+        # invoice number is the supplier's own sequence and a repeat against a live record is
+        # either a resubmission or a numbering fault.
+        #
+        # The rejected case is excluded on the policy's instruction, not as a nicety. §2: "A
+        # prior rejection does not automatically prove a new invoice is a duplicate; the
+        # reason and corrected fields must be reviewed." A supplier whose invoice was rejected
+        # and who corrects it and resubmits under the same number is behaving correctly, and a
+        # first version of this signal held every such resubmission. A rejected record still
+        # reaches the checks below, so a correction that changes nothing material is still
+        # caught.
+        percent = _amount_variance_percent(invoice.gross_amount, record.gross_amount)
         return [
             f"same invoice number once punctuation is stripped "
-            f"({invoice.normalised_reference}), amount "
-            f"{_amount_variance_percent(invoice.gross_amount, record.gross_amount)}% apart"
+            f"({invoice.normalised_reference}), against a {record.status.value} record, "
+            f"amounts {quantize(percent)}% apart"
         ]
 
     variance_percent = _amount_variance_percent(invoice.gross_amount, record.gross_amount)
@@ -191,8 +205,13 @@ def duplicate_check(
                         _amount_variance_percent(invoice.gross_amount, record.gross_amount)
                     ),
                     currency=None,
+                    rounding="ROUND_HALF_EVEN",
                     policy_ref=POLICY_DETECTION,
-                    note="Percentage, not currency.",
+                    note=(
+                        "Percentage, not currency. The comparison against the 0.5% bound uses "
+                        "the unrounded value; this figure is rounded for reading, and the "
+                        "rounding recorded is the one that produced it."
+                    ),
                 )
             )
 

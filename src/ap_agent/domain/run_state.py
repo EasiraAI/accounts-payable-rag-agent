@@ -129,10 +129,10 @@ class RunState(BaseModel):
     #: remains before the due date. A proposal only; FIN-POL-006 §4 forbids an agent
     #: releasing a payment file, and no tool here can.
     proposed_payment_run: date | None = None
-    #: Whether the due date fell on a non-business day. Read by the risk assessment, because
-    #: FIN-POL-005 §3 makes a *weekend* manual-payment request an indicator and this is the
-    #: fact that makes a manual request a weekend one.
-    settlement_on_non_business_day: bool = False
+    #: Whether the due date fell on a non-business day before FIN-POL-006 §2's adjustment.
+    #: Recorded for the schedule, and deliberately not read by the risk assessment: the
+    #: payment does not settle on that day, because §2 moves it to the preceding business day.
+    due_date_on_non_business_day: bool = False
 
     # ---- outcome ----------------------------------------------------------------------
     recommendation: Recommendation | None = None

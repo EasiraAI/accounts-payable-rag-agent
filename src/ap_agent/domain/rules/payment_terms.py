@@ -20,11 +20,18 @@ the following business day would be late. Public holidays are out of scope here 
 names them and supplies no calendar, and an invented calendar would produce authoritative
 looking dates that are wrong. Only weekends are applied, and the limitation is recorded.
 
-**It proposes a payment run.** §2 schedules approved invoices for the next standard run
-*before* the due date, and standard runs are Tuesday and Thursday. The proposal is the latest
-such run that is not in the past and not after the due date. When no run remains, that is
-itself the finding: the invoice is already due, and saying so is more useful than naming a
-date that cannot be met.
+**It proposes a payment run.** §2 schedules approved invoices for "the next standard payment
+run before their due date", and standard runs are Tuesday and Thursday. This module proposes
+the *latest* qualifying run rather than the earliest, which is an interpretation: §3 requires a
+documented commercial benefit for an early payment, so paying on the first available run
+instead of the last one that still meets the terms would need a justification the case does not
+carry. The reading is recorded here so it is not mistaken for the policy's wording.
+
+Three cases, and telling them apart matters. Either a standard run falls between today and the
+due date, or none does but the due date is still ahead, or the due date has passed. The middle
+case gets the first run *after* the due date, with the lateness stated. An earlier version
+collapsed the middle case into the last one and reported an invoice due next Monday as already
+overdue.
 
 Under §4 an agent may prepare a proposed schedule and may not release a payment file. This
 module only ever returns dates. Nothing downstream of it can release anything, because no tool
@@ -34,16 +41,20 @@ in this system can move money.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ap_agent.domain.enums import EscalationOwner, ExceptionCategory
 from ap_agent.domain.evidence import Invoice, PurchaseOrder
 from ap_agent.domain.results import Calculation, ExceptionRecord, PolicyFinding
-from ap_agent.domain.rules._shared import next_review_date, previous_business_day
+from ap_agent.domain.rules._shared import (
+    add_business_days,
+    next_review_date,
+    previous_business_day,
+)
 
 POLICY_TERMS = "FIN-POL-006 §1"
+POLICY_SERVICE_LEVELS = "FIN-POL-007 §4"
 POLICY_SCHEDULING = "FIN-POL-006 §2"
 POLICY_MANUAL = "FIN-POL-006 §3"
 
@@ -52,6 +63,11 @@ DEFAULT_TERMS_DAYS = 30
 
 #: FIN-POL-006 §2: "Standard runs occur Tuesday and Thursday." Monday is 0.
 STANDARD_RUN_WEEKDAYS = (1, 3)
+
+#: FIN-POL-007 §4: "Invoices due within two business days may be prioritised, but urgency does
+#: not relax controls." The window is in business days, so a Thursday case with a Monday due
+#: date is inside it.
+PRIORITY_WINDOW_BUSINESS_DAYS = 2
 
 
 class PaymentTermsResult(BaseModel):
@@ -66,26 +82,43 @@ class PaymentTermsResult(BaseModel):
     payable_on: date
     #: The next standard run that falls on or before ``payable_on`` and not in the past.
     proposed_run_date: date | None = None
-    #: Whether the computed due date fell on a non-business day. Read by the fraud assessment:
-    #: FIN-POL-005 §3 treats a *weekend* manual-payment request as an indicator, and this is
-    #: the observable fact that makes a manual request a weekend one.
-    settlement_on_non_business_day: bool = False
+    #: Whether the *due* date fell on a non-business day, before §2's adjustment. Named for
+    #: what it is: the payment itself never settles on one, because ``payable_on`` has already
+    #: been moved to the preceding business day. It is not a fraud signal, and a version that
+    #: fed it to the weekend manual-payment indicator raised that indicator on roughly two
+    #: invoices in seven for a condition §2 had already remedied.
+    due_date_on_non_business_day: bool = False
     printed_terms_days: int | None = None
     printed_terms_conflict: bool = False
+    #: Whether the proposed run meets the agreed terms. False when the only available run
+    #: falls after the due date, which is a different condition from being past due.
+    meets_agreed_terms: bool = True
+    #: Whether the invoice was already payable before the processing date.
     already_due: bool = False
+    #: FIN-POL-007 §4: whether the case falls in the window where an exception review may be
+    #: prioritised. A queue-ordering hint and nothing more; §4 states in the same sentence
+    #: that urgency does not relax controls, so no threshold or check varies with it.
+    may_be_prioritised: bool = False
+    #: Always empty today, and kept because the orchestrator reads the same four record
+    #: lists from every rule result. Dates are not monetary calculations: the ``Calculation``
+    #: model carries an amount and a rounding method, and an earlier version abused it to
+    #: record a day count. The arithmetic is stated in the findings instead.
     calculations: list[Calculation] = Field(default_factory=list)
     exceptions: list[ExceptionRecord] = Field(default_factory=list)
     findings: list[PolicyFinding] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
 
 
-def _proposed_run_date(*, payable_on: date, not_before: date) -> date | None:
-    """The latest standard payment run on or before ``payable_on``, not earlier than today.
+def _latest_run_by(*, payable_on: date, not_before: date) -> date | None:
+    """The latest standard payment run in ``[not_before, payable_on]``, or ``None``.
 
     Searched backwards from the due date so the proposal is the last run that still meets the
-    terms, which is the scheduling FIN-POL-006 §2 describes: the next run *before* the due
-    date. Paying earlier than necessary without a documented commercial benefit would be an
-    early payment under §3 and needs its own approval.
+    terms. Paying earlier than necessary without a documented commercial benefit would be an
+    early payment under FIN-POL-006 §3 and needs its own approval; see the module docstring on
+    why this is an interpretation of §2 rather than its wording.
+
+    Terminates in at most seven steps: any seven consecutive days contain a Tuesday and a
+    Thursday, so a window wider than a week always returns on its first or second candidate.
     """
     candidate = payable_on
     while candidate >= not_before:
@@ -93,6 +126,20 @@ def _proposed_run_date(*, payable_on: date, not_before: date) -> date | None:
             return candidate
         candidate -= timedelta(days=1)
     return None
+
+
+def _first_run_after(moment: date) -> date:
+    """The earliest standard payment run strictly after ``moment``.
+
+    Used when no run falls inside the terms. The invoice will be paid late whatever happens,
+    so the useful answer is the soonest run rather than no answer at all: FIN-POL-006 §3 says
+    internal delay is not grounds for a manual payment, which makes the next standard run the
+    correct destination for a case in this position.
+    """
+    candidate = moment + timedelta(days=1)
+    while candidate.weekday() not in STANDARD_RUN_WEEKDAYS:
+        candidate += timedelta(days=1)
+    return candidate
 
 
 def assess_payment_terms(
@@ -179,25 +226,20 @@ def assess_payment_terms(
     due = invoice.invoice_date + timedelta(days=agreed)
     on_non_business_day = due.weekday() >= 5
     payable_on = previous_business_day(due) if on_non_business_day else due
-    calculations.append(
-        Calculation(
-            name="payment_due_date",
-            inputs={
-                "invoice_date": invoice.invoice_date.isoformat(),
-                "agreed_terms_days": str(agreed),
-                "terms_source": source,
-            },
-            formula="invoice_date + agreed_terms_days calendar days",
-            # The term itself, in days. The calculation record carries a number, and the
-            # dates it produces are in the note and on the result object; recording the term
-            # here is what lets a reviewer check the arithmetic against the source.
-            result=Decimal(agreed),
-            currency=None,
+    # Deliberately not recorded as a ``Calculation``. That model carries a monetary result
+    # with a rounding method, and a due date is neither: an earlier version put the day count
+    # in the amount field and recorded a rounding mode for a value that is never rounded. The
+    # dates are on the result object, and the finding below states the arithmetic in words.
+    findings.append(
+        PolicyFinding(
+            rule="due_date_computed_from_agreed_terms",
             policy_ref=POLICY_TERMS,
-            note=(
-                f"Due {due.isoformat()}"
+            satisfied=True,
+            detail=(
+                f"{invoice.invoice_date.isoformat()} plus {agreed} calendar days from {source} "
+                f"gives {due.isoformat()}"
                 + (
-                    f"; a non-business day, so payable {payable_on.isoformat()}, the preceding "
+                    f", a non-business day, so payable {payable_on.isoformat()}, the preceding "
                     "business day under FIN-POL-006 §2"
                     if on_non_business_day
                     else ""
@@ -207,22 +249,93 @@ def assess_payment_terms(
             ),
         )
     )
-    if on_non_business_day:
+
+    # ---- §4 of FIN-POL-007: may this case jump the review queue? --------------------------
+    # Recorded because the due date is now computed and the input therefore exists. It changes
+    # nothing else: §4's own sentence is "Invoices due within two business days may be
+    # prioritised, but urgency does not relax controls", so this affects the order a person
+    # works through exceptions and no tolerance, limit or approval requirement anywhere.
+    priority_cutoff = add_business_days(as_of.date(), PRIORITY_WINDOW_BUSINESS_DAYS)
+    may_be_prioritised = payable_on <= priority_cutoff
+    if may_be_prioritised:
         findings.append(
             PolicyFinding(
-                rule="non_business_day_due_date_brought_forward",
-                policy_ref=POLICY_SCHEDULING,
+                rule="exception_review_may_be_prioritised",
+                policy_ref=POLICY_SERVICE_LEVELS,
                 satisfied=True,
                 detail=(
-                    f"due {due.isoformat()} is a non-business day; payable "
-                    f"{payable_on.isoformat()}, the preceding business day"
+                    f"payable {payable_on.isoformat()}, within "
+                    f"{PRIORITY_WINDOW_BUSINESS_DAYS} business days of "
+                    f"{as_of.date().isoformat()}. A queue-ordering hint only: FIN-POL-007 §4 "
+                    "states that urgency does not relax controls, and no threshold or check "
+                    "in this engine varies with it."
                 ),
             )
         )
 
     # ---- §2 the proposed run -------------------------------------------------------------
-    proposed = _proposed_run_date(payable_on=payable_on, not_before=as_of.date())
-    already_due = proposed is None
+    past_due = payable_on < as_of.date()
+    proposed = None if past_due else _latest_run_by(payable_on=payable_on, not_before=as_of.date())
+    if proposed is None and not past_due:
+        # The due date is still ahead and no standard run falls before it. A short term
+        # ending on a Friday or a Monday produces this. The invoice will be paid late, and
+        # the soonest standard run is a more useful answer than none.
+        late_run = _first_run_after(payable_on)
+        days_late = (late_run - payable_on).days
+        exceptions.append(
+            ExceptionRecord(
+                category=ExceptionCategory.OTHER_CONTROL_RISK,
+                failed_rule="payment_terms.standard_run_available_before_due_date",
+                expected=f"a Tuesday or Thursday run on or before {payable_on.isoformat()}",
+                observed=(
+                    f"the next standard run is {late_run.isoformat()}, {days_late} day(s) "
+                    "after the due date"
+                ),
+                owner=EscalationOwner.ACCOUNTS_PAYABLE_MANAGER,
+                policy_refs=[POLICY_SCHEDULING, POLICY_MANUAL],
+                next_review_date=review,
+                # Not blocking. The invoice is valid and payable; what is missing is a run
+                # that meets the terms, which is a scheduling matter for Accounts Payable.
+                blocking=False,
+                detail=(
+                    "No standard payment run falls between the processing date and the due "
+                    "date, so the agreed terms cannot be met by a standard run. An early "
+                    "payment needs a documented commercial benefit under FIN-POL-006 §3, and "
+                    "a manual payment needs Treasury and Financial Control approval, so the "
+                    "proposal is the next standard run."
+                ),
+            )
+        )
+        findings.append(
+            PolicyFinding(
+                rule="scheduled_for_a_standard_payment_run",
+                policy_ref=POLICY_SCHEDULING,
+                satisfied=False,
+                detail=(
+                    f"proposed run {late_run.isoformat()}, {days_late} day(s) after the due "
+                    f"date {payable_on.isoformat()}: no standard run falls before it"
+                ),
+            )
+        )
+        return PaymentTermsResult(
+            agreed_terms_days=agreed,
+            terms_source=source,
+            due_date=due,
+            payable_on=payable_on,
+            proposed_run_date=late_run,
+            meets_agreed_terms=False,
+            due_date_on_non_business_day=on_non_business_day,
+            printed_terms_days=printed_terms_days,
+            printed_terms_conflict=conflict,
+            already_due=False,
+            may_be_prioritised=may_be_prioritised,
+            calculations=calculations,
+            exceptions=exceptions,
+            findings=findings,
+            assumptions=assumptions,
+        )
+
+    already_due = past_due
     if proposed is not None:
         findings.append(
             PolicyFinding(
@@ -242,7 +355,10 @@ def assess_payment_terms(
                 category=ExceptionCategory.OTHER_CONTROL_RISK,
                 failed_rule="payment_terms.standard_run_available_before_due_date",
                 expected=f"a Tuesday or Thursday run on or before {payable_on.isoformat()}",
-                observed=f"no standard run remains after {as_of.date().isoformat()}",
+                observed=(
+                    f"the invoice was payable {payable_on.isoformat()}, before the processing "
+                    f"date {as_of.date().isoformat()}"
+                ),
                 owner=EscalationOwner.ACCOUNTS_PAYABLE_MANAGER,
                 policy_refs=[POLICY_SCHEDULING, POLICY_MANUAL],
                 next_review_date=review,
@@ -277,10 +393,12 @@ def assess_payment_terms(
         due_date=due,
         payable_on=payable_on,
         proposed_run_date=proposed,
-        settlement_on_non_business_day=on_non_business_day,
+        meets_agreed_terms=proposed is not None,
+        due_date_on_non_business_day=on_non_business_day,
         printed_terms_days=printed_terms_days,
         printed_terms_conflict=conflict,
         already_due=already_due,
+        may_be_prioritised=may_be_prioritised,
         calculations=calculations,
         exceptions=exceptions,
         findings=findings,

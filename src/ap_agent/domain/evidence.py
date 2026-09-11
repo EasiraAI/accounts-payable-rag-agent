@@ -104,6 +104,23 @@ class RetrievedChunk(BaseModel):
         )
 
 
+def normalise_invoice_reference(reference: str) -> str:
+    """An invoice number reduced to its alphanumeric characters, upper-cased.
+
+    FIN-POL-005 §1 requires punctuation-stripped comparison of invoice numbers. This is the
+    one implementation of that rule, and it is here rather than in the duplicate rule because
+    three things need it and they must not disagree: the duplicate rule decides whether an
+    invoice was seen before, and the decision table's fingerprint constraint decides whether
+    one was already posted. If those two disagreed about what counts as the same number, an
+    invoice could pass the rule and collide with the constraint, or pass the constraint and be
+    paid twice.
+
+    A review found all three carrying their own identical comprehension, agreeing by
+    coincidence, with a comment in the store asserting that they agree.
+    """
+    return "".join(character for character in reference if character.isalnum()).upper()
+
+
 class InvoiceLine(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -172,9 +189,7 @@ class Invoice(BaseModel):
     def normalised_reference(self) -> str:
         """Punctuation-stripped, case-folded reference for duplicate matching
         (FIN-POL-005 §1)."""
-        return "".join(
-            character for character in self.invoice_reference if character.isalnum()
-        ).upper()
+        return normalise_invoice_reference(self.invoice_reference)
 
 
 class POLine(BaseModel):

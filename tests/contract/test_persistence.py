@@ -826,3 +826,105 @@ class TestSchemaVersioning:
         with Repository(tmp_path / "fresh.db") as repository:
             version = repository.schema_version
         assert version == SCHEMA_VERSION
+
+
+class TestMigrationCrashWindows:
+    """A crash during a migration must not leave a store that cannot be opened again.
+
+    Each of these reproduces a window a review found by inspection and then confirmed by
+    simulating the crash. The first was the serious one: the shape change committed, the
+    version stamp did not, and every subsequent open re-ran the ALTER and failed on
+    "duplicate column name" — permanently, because nothing could get past the failure to
+    correct the version.
+    """
+
+    @staticmethod
+    def _legacy(path: Path) -> None:
+        connection = sqlite3.connect(path)
+        connection.executescript(
+            """
+            CREATE TABLE runs (
+                run_id TEXT PRIMARY KEY, case_id TEXT NOT NULL, status TEXT NOT NULL,
+                phase TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1,
+                state_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE decisions (
+                idempotency_key TEXT PRIMARY KEY, run_id TEXT NOT NULL UNIQUE,
+                case_id TEXT NOT NULL, approval_id TEXT NOT NULL, outcome TEXT NOT NULL,
+                request_hash TEXT NOT NULL, response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO runs VALUES
+                ('r1', 'FIN-001', 'COMPLETED', 'COMPLETE', 1, '{}',
+                 '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00');
+            """
+        )
+        connection.commit()
+        connection.close()
+
+    def test_a_migrated_shape_with_a_lost_version_stamp_still_opens(self, tmp_path: Path) -> None:
+        """The reported brick: the ALTER committed and the stamp was lost to a crash."""
+        path = tmp_path / "lost_stamp.db"
+        self._legacy(path)
+        connection = sqlite3.connect(path)
+        connection.execute(
+            "ALTER TABLE decisions ADD COLUMN invoice_fingerprint TEXT NOT NULL DEFAULT ''"
+        )
+        connection.commit()
+        connection.close()  # the version pragma is left at 0, as a crash would leave it
+
+        with Repository(path) as repository:
+            assert repository.schema_version == SCHEMA_VERSION
+            assert "invoice_fingerprint" in repository.column_names("decisions")
+
+    def test_a_partially_created_store_is_completed(self, tmp_path: Path) -> None:
+        """A first run interrupted inside the schema script leaves some tables and not others.
+
+        Such a store has tables, so it reads as a legacy store, and the migration has no
+        ``decisions`` table to alter. The step is skipped and the script creates it complete.
+        """
+        path = tmp_path / "partial.db"
+        connection = sqlite3.connect(path)
+        connection.execute(
+            "CREATE TABLE runs (run_id TEXT PRIMARY KEY, case_id TEXT NOT NULL,"
+            " status TEXT NOT NULL, phase TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1,"
+            " state_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"
+        )
+        connection.commit()
+        connection.close()
+
+        with Repository(path) as repository:
+            assert "invoice_fingerprint" in repository.column_names("decisions")
+            assert repository.schema_version == SCHEMA_VERSION
+
+    def test_a_fresh_store_is_stamped_before_its_shape_exists(self, tmp_path: Path) -> None:
+        """Stamping afterwards let a newer build's interrupted create read as a legacy store,
+        which an older build would then migrate backwards. The stamp is an upper bound."""
+        path = tmp_path / "fresh.db"
+        with Repository(path) as repository:
+            assert repository.schema_version == SCHEMA_VERSION
+
+    def test_concurrent_first_opens_do_not_collide(self, tmp_path: Path) -> None:
+        """Two processes opening an unmigrated store must not both try to migrate it.
+
+        ``BEGIN IMMEDIATE`` takes the write lock before the first statement, so the second
+        waits and then finds the work done.
+        """
+        path = tmp_path / "race.db"
+        self._legacy(path)
+        errors: list[str] = []
+
+        def open_store() -> None:
+            try:
+                with Repository(path) as repository:
+                    assert repository.schema_version == SCHEMA_VERSION
+            except Exception as error:
+                errors.append(f"{type(error).__name__}: {error}")
+
+        threads = [threading.Thread(target=open_store) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert errors == []

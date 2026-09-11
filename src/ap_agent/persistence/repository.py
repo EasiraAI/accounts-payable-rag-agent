@@ -56,12 +56,13 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
 from ap_agent.domain.enums import ApprovalStatus, Outcome, RunStatus
 from ap_agent.domain.errors import ApprovalStateConflict, RunNotFound
+from ap_agent.domain.evidence import normalise_invoice_reference
 from ap_agent.domain.results import ApprovalRequest, ApprovalSignature, DecisionReceipt
 from ap_agent.domain.run_state import RunState
 
@@ -87,13 +88,48 @@ _BUSY_TIMEOUT_SECONDS: Final = 5.0
 # path, and for this store the constraints *are* the exactly-once guarantee.
 SCHEMA_VERSION: Final = 2
 
-# Statements that carry a store from version N-1 to N, keyed by the version they produce.
-# Deliberately hand-written rather than derived from schema.sql: a migration has to say what
-# happens to rows that already exist, which a CREATE statement cannot express. The default
-# here is the one the partial unique index excludes, so decisions recorded before the column
-# existed do not collide with each other.
-_MIGRATIONS: Final[dict[int, tuple[str, ...]]] = {
-    2: ("ALTER TABLE decisions ADD COLUMN invoice_fingerprint TEXT NOT NULL DEFAULT ''",),
+#: What ``_store_version`` reports for a database with no tables. An unstamped store reports
+#: the same zero, so the two are told apart by whether any table exists.
+_UNVERSIONED: Final = 0
+
+
+class _AddColumn(NamedTuple):
+    """One migration step: add a column to a table, if it is not already there.
+
+    Guarded rather than unconditional, and the guard is not defensiveness. A review
+    demonstrated the failure. An ``ALTER TABLE`` that commits before the version stamp leaves
+    a store whose shape is version 2 and whose recorded version is still 1; re-running the
+    bare ALTER on the next open raises "duplicate column name" every time, and the store
+    becomes permanently unopenable. Stamping inside the same transaction closes that window,
+    and a step that checks before acting means a store which slipped through it under an
+    earlier build, or was patched by hand, still opens.
+
+    The same guard covers the other order of failure. A first run interrupted partway through
+    ``schema.sql`` can leave ``runs`` present and ``decisions`` absent, which reads as a legacy
+    store. There is then no table to alter, the step is skipped, and the script creates the
+    table complete.
+    """
+
+    table: str
+    column: str
+    statement: str
+
+
+# Steps that carry a store from version N-1 to N, keyed by the version they produce. Written
+# by hand rather than derived from schema.sql, because a migration has to say what happens to
+# rows that already exist and a CREATE statement cannot express that. The default below is the
+# value the partial unique index excludes, so decisions recorded before the column existed do
+# not collide with each other.
+_MIGRATIONS: Final[dict[int, tuple[_AddColumn, ...]]] = {
+    2: (
+        _AddColumn(
+            table="decisions",
+            column="invoice_fingerprint",
+            statement=(
+                "ALTER TABLE decisions ADD COLUMN invoice_fingerprint TEXT NOT NULL DEFAULT ''"
+            ),
+        ),
+    ),
 }
 
 
@@ -159,18 +195,17 @@ def compute_invoice_fingerprint(
     """Derive the invoice fingerprint used to prevent a second posting of one invoice.
 
     The four fields are exactly those FIN-POL-005 §1 names for exact duplicate matching:
-    vendor identifier, normalised invoice number, currency and gross amount. The invoice
-    number is normalised the same way the duplicate rule normalises it, so the constraint and
-    the rule agree about what counts as the same invoice.
+    vendor identifier, normalised invoice number, currency and gross amount. The number goes
+    through ``normalise_invoice_reference``, the same function the duplicate rule uses, so the
+    constraint and the rule cannot disagree about what counts as the same invoice. They used
+    to agree by having identical copies of the same comprehension.
 
     This exists because per-run uniqueness was not enough. A review submitted one identical
     invoice as three separate runs, approved each once, and received three posted decisions.
     The duplicate-detection rule could not have caught it: it reads an upstream history
     service that knows nothing about decisions this system recorded seconds earlier.
     """
-    normalised = "".join(
-        character for character in invoice_reference if character.isalnum()
-    ).upper()
+    normalised = normalise_invoice_reference(invoice_reference)
     material = f"{vendor_id}|{normalised}|{currency.upper()}|{gross_amount}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
@@ -241,43 +276,93 @@ class Repository:
     def _apply_schema(self) -> None:
         """Bring the connected database up to ``SCHEMA_VERSION``.
 
-        Order matters. Migrations run before the schema script, because a statement in the
-        script can depend on a column a migration adds: the partial unique index on
-        ``decisions.invoice_fingerprint`` cannot be created until the column exists.
-        Migrations only ever alter tables that are already present, so nothing they touch
-        depends on the script having run first.
+        Three properties this has to hold, each of which was a defect first.
+
+        **The version and the shape change together.** A migration step and the version stamp
+        are one transaction. SQLite makes both DDL and ``user_version`` transactional, so a
+        crash leaves either the old shape with the old version or the new shape with the new
+        version. Without that, a crash in the window left a migrated store still claiming the
+        old version, and every subsequent open re-ran the ALTER and failed on "duplicate
+        column name". The store could not be opened again.
+
+        **A brand-new store is stamped before it is created, not after.** Stamping afterwards
+        meant a build that died between the script and the stamp left a current-shaped store
+        reporting version 0, which an older build would read as a legacy store and "migrate" —
+        the exact case the newer-store refusal exists to prevent. Stamping first makes the
+        recorded version an upper bound on the shape, and a partially created store is
+        completed by the script on the next open because every statement in it is
+        ``IF NOT EXISTS``.
+
+        **Migrations run before the script.** A statement in the script can depend on a column
+        a migration adds: the partial unique index on ``decisions.invoice_fingerprint`` cannot
+        be created until the column exists.
         """
-        version = self._store_version()
-        if version > SCHEMA_VERSION:
-            raise RuntimeError(
-                f"{self._db_path} was written by a newer schema (version {version}); "
-                f"this build expects version {SCHEMA_VERSION}. Refusing to open it: "
-                "running older code against a newer store can drop a constraint from the "
-                "enforcement path."
-            )
-        for target in range(version + 1, SCHEMA_VERSION + 1):
-            for statement in _MIGRATIONS.get(target, ()):
-                self._connection.execute(statement)
-            # Interpolated because PRAGMA does not take bound parameters. ``target`` is a
-            # loop variable over a range of ints, never caller input.
-            self._connection.execute(f"PRAGMA user_version = {target:d}")
-        self._connection.executescript(_SCHEMA_PATH.read_text(encoding="utf-8"))
-        self._connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION:d}")
+        with self._write_lock:
+            version = self._store_version()
+            if version > SCHEMA_VERSION:
+                raise RuntimeError(
+                    f"{self._db_path} was written by a newer schema (version {version}); "
+                    f"this build expects version {SCHEMA_VERSION}. Refusing to open it: "
+                    "running older code against a newer store can drop a constraint from the "
+                    "enforcement path."
+                )
+            if version == _UNVERSIONED:
+                # No tables at all. Claim the version first, then build the shape.
+                self._stamp(SCHEMA_VERSION)
+            else:
+                for target in range(version + 1, SCHEMA_VERSION + 1):
+                    self._migrate_to(target)
+            self._connection.executescript(_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    def _migrate_to(self, target: int) -> None:
+        """Apply one version's steps and its stamp as a single transaction.
+
+        ``BEGIN IMMEDIATE`` takes the write lock at the start rather than on first write, so
+        two processes opening an unmigrated store cannot both decide to migrate it. The second
+        waits, then finds the steps applied and the version advanced.
+        """
+        self._connection.execute("BEGIN IMMEDIATE")
+        try:
+            for step in _MIGRATIONS.get(target, ()):
+                if self._step_is_needed(step):
+                    self._connection.execute(step.statement)
+            self._stamp(target)
+        except BaseException:
+            self._connection.execute("ROLLBACK")
+            raise
+        else:
+            self._connection.execute("COMMIT")
+
+    def _step_is_needed(self, step: _AddColumn) -> bool:
+        """Whether ``step`` still has work to do against the open store.
+
+        A table that does not exist yet needs nothing: the schema script will create it with
+        the column already present.
+        """
+        columns = self.column_names(step.table)
+        return bool(columns) and step.column not in columns
+
+    def _stamp(self, version: int) -> None:
+        # Interpolated because PRAGMA takes no bound parameters. The argument comes from this
+        # module's own constants, never from a caller, and is formatted as an integer.
+        self._connection.execute(f"PRAGMA user_version = {version:d}")
 
     def _store_version(self) -> int:
         """The schema version of the database on disk.
 
-        An empty file is a fresh install and needs no migration, so it reports the current
-        version. A populated store whose pragma is still 0 predates versioning; it is
-        treated as version 1, the shape the code had when the pragma was introduced.
+        ``_UNVERSIONED`` means a database with no tables: a fresh file, which is stamped and
+        then created. A store that has tables and no stamp was written before versioning
+        existed, and is version 1 — the shape the code had when the pragma was introduced.
+        That reading cannot become ambiguous, because a stamp is now written before any shape:
+        every store a versioned build creates carries its version from the first statement on.
         """
         pragma = int(self._connection.execute("PRAGMA user_version").fetchone()[0])
         if pragma:
             return pragma
-        populated = self._connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'runs'"
+        has_tables = self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
         ).fetchone()
-        return 1 if populated else SCHEMA_VERSION
+        return 1 if has_tables else _UNVERSIONED
 
     @contextmanager
     def _write_transaction(self) -> Iterator[sqlite3.Cursor]:

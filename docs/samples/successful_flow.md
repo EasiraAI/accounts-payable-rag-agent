@@ -19,7 +19,7 @@ Generated from the transcript the evaluation run emitted, not written by hand, s
 | Exceptions raised | none |
 | Fraud indicators | none |
 | Unknowns | 0 |
-| Decision reference | DEC-0ED8A5505975 |
+| Decision reference | DEC-EA12776ADF4B |
 
 ## Recommendation
 
@@ -50,6 +50,7 @@ Every figure below was computed in decimal arithmetic by the rule engine, not by
 
 | Calculation | Formula | Result | Policy | Verdict |
 |---|---|---|---|---|
+| `invoice_internal_consistency` | invoice_net - sum(line_total) | 0.00 AUD | FIN-POL-001 §2 |  |
 | `line_1_expected_value` | quantity_invoiced x po_unit_price | 11520.00 AUD | FIN-POL-002 §5 |  |
 | `line_1_price_variance` | invoiced_value - expected_value | 0.00 AUD | FIN-POL-002 §5 |  |
 | `line_1_tolerance_limit` | min(50.00, 1% of po_line_value) | 50.00 AUD | FIN-POL-002 §2 |  |
@@ -62,7 +63,9 @@ Every figure below was computed in decimal arithmetic by the rule engine, not by
 | `line_2_quantity_check` | quantity_invoiced <= quantity_received | 0.00 | FIN-POL-002 §2 | pass |
 | `document_total_variance` | invoice_net - expected_net | 0.00 AUD | FIN-POL-002 §5 |  |
 | `document_tolerance_limit` | max(per-line tolerance limits on the order) | 50.00 AUD | FIN-POL-002 §2 |  |
-| `required_approval_authority` | lowest role in the FIN-POL-003 §2 matrix whose maximum >= total_commitment | 50000 AUD | FIN-POL-003 §2 |  |
+| `tax_expected_at_configured_rate` | invoice_net x rate_percent / 100 | 1632.00 AUD | FIN-POL-002 §5 |  |
+
+(15 calculations in total.)
 
 ## Cited evidence
 
@@ -87,19 +90,26 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 
 ## Policy findings
 
-12 of 12 controls satisfied. Passing findings are retained deliberately: a record showing which controls were evaluated and satisfied is what distinguishes a run that checked everything from one that happened not to notice anything.
+19 of 19 controls satisfied. Passing findings are retained deliberately: a record showing which controls were evaluated and satisfied is what distinguishes a run that checked everything from one that happened not to notice anything.
 
 | Rule | Policy | Verdict | Detail |
 |---|---|---|---|
+| `minimum_evidence_present` | FIN-POL-001 §2 | satisfied | present: supplier legal name, invoice number, currency, gross amount, invoice date, purcha... |
+| `document_total_agrees_with_lines` | FIN-POL-001 §3 | satisfied | lines sum to 16320.00 AUD against a document net of 16320.00 AUD. Engine integrity check, ... |
 | `purchase_order_approved` | FIN-POL-002 §1 | satisfied | purchase order PO-88121 is approved |
 | `currency_matches_purchase_order` | FIN-POL-002 §1 | satisfied | invoice and order are both in AUD |
 | `document_total_within_tolerance` | FIN-POL-002 §2 | satisfied | variance 0.00 AUD against limit 50.00 AUD |
 | `receipt_recorded` | FIN-POL-002 §4 | satisfied | 2 receipt record(s) against PO-88121 |
 | `no_duplicate_detected` | FIN-POL-005 §1 | satisfied | 2 candidate record(s) examined against paid, posted, held and rejected history; none match... |
 | `vendor_status_active` | FIN-POL-004 §4 | satisfied | vendor V-1001 is ACTIVE |
-| `bank_details_stable` | FIN-POL-004 §2 | satisfied | no bank-detail change inside the 30-day window |
-| `segregation_of_duties` | FIN-POL-001 §4 | satisfied | requester and vendor creator are different people |
-| `legal_name_agreement` | FIN-POL-004 §4 | satisfied | invoice vendor name matches the master record |
+| `first_payment_after_bank_change_co_approved` | FIN-POL-004 §2 | satisfied | bank details last changed on 2024-04-14, and a settled payment has followed, so the first-... |
+| `legal_name_agreement` | FIN-POL-004 §1 | satisfied | invoice vendor name matches the master record |
+| `payment_instructions_match_vendor_master` | FIN-POL-001 §5 | satisfied | No payment instructions were asserted in the case notes or attachments, so nothing contrad... |
+| `segregation_of_duties_partial` | FIN-POL-001 §4 | satisfied | Nothing comparable at reconciliation: the invoice is at or below 25000 AUD, so the three-p... |
+| `tax_assessed_separately` | FIN-POL-002 §2 | satisfied | stated tax 1632.00 AUD agrees with 10% of the net within 0.05 AUD |
+| `agreed_payment_terms_applied` | FIN-POL-006 §1 | satisfied | 30 days from purchase order PO-88121 |
+| `due_date_computed_from_agreed_terms` | FIN-POL-006 §1 | satisfied | 2026-09-09 plus 30 calendar days from purchase order PO-88121 gives 2026-10-09. Weekends o... |
+| `scheduled_for_a_standard_payment_run` | FIN-POL-006 §2 | satisfied | proposed run 2026-10-08, the last standard run on or before 2026-10-09. Proposal only: und... |
 | `approval_authority_determined` | FIN-POL-003 §2 | satisfied | 17952.00 AUD requires at least DEPARTMENT_DIRECTOR (limit 50000 AUD) |
 | `outcome_determined_deterministically` | FIN-POL-002 §5 | satisfied | The outcome was computed by the rule engine from typed facts. three-way match within toler... |
 | `approver_within_authority` | FIN-POL-003 §5 | satisfied | U-3081 as DEPARTMENT_DIRECTOR may approve 17952.00 AUD against a limit of 50000 AUD, regis... |
@@ -107,22 +117,22 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 ## Actions taken
 
 - **RECORD_APPROVE_FOR_POSTING** against `SIMULATED_ERP`
-  - Reference: `DEC-0ED8A5505975`
+  - Reference: `DEC-EA12776ADF4B`
   - Simulated: True
-  - Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_589d08df023246de was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING
+  - Authorised by U-3081 (DEPARTMENT_DIRECTOR); approval apr_0ef73e6e806e45a8 was granted by U-3081 (DEPARTMENT_DIRECTOR) for APPROVE_FOR_POSTING
 
 ## Decision receipt
 
 ```json
 {
-  "decision_ref": "DEC-0ED8A5505975",
-  "run_id": "run_b45c118ce15446f4",
+  "decision_ref": "DEC-EA12776ADF4B",
+  "run_id": "run_95cea7106a0049e9",
   "case_id": "FIN-001",
   "outcome": "APPROVE_FOR_POSTING",
   "amount": "17952.00",
   "currency": "AUD",
-  "idempotency_key": "0ed8a5505975266d961c0fb516ce423bce90bd0c570aae0cd9263543620db0c6",
-  "recorded_at": "2026-09-11T02:48:57.934835Z",
+  "idempotency_key": "ea12776adf4b4ae7baf0e919b40ab8ce50380873222f4b6b7306886e1f57c4c0",
+  "recorded_at": "2026-09-11T04:25:13.286812Z",
   "simulated": true,
   "replayed": false,
   "posting_system": "SIMULATED_ERP"
@@ -133,44 +143,49 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 
 ## Audit event log
 
-36 events, in order. Every one carries a timestamp, the run and correlation identifiers, an outcome and a duration. Payloads are redacted at a single egress point before they are written.
+41 events, in order. Every one carries a timestamp, the run and correlation identifiers, an outcome and a duration. Payloads are redacted at a single egress point before they are written.
 
 | # | Event | Phase | Outcome | ms | Detail |
 |---|---|---|---|---|---|
 | 1 | `RUN_CREATED` | INTAKE |  |  | provider=fake; model=fake-deterministic-1 |
 | 2 | `PHASE_STARTED` | INTAKE |  |  |  |
-| 3 | `PHASE_COMPLETED` | INTAKE | SUCCESS | 1 | next_phase=RETRIEVE_POLICY |
+| 3 | `PHASE_COMPLETED` | INTAKE | SUCCESS | 0 | next_phase=RETRIEVE_POLICY |
 | 4 | `PHASE_STARTED` | RETRIEVE_POLICY |  |  |  |
-| 5 | `TOOL_CALL` |  | SUCCESS | 34 | tool=retrieve_finance_documents; attempt=1 |
-| 6 | `RETRIEVAL` |  | SUCCESS | 37 | query=three-way matching tolerance price variance quantity and goods rece...; purpose=three_way_match; result_count=4 |
-| 7 | `TOOL_CALL` |  | SUCCESS | 15 | tool=retrieve_finance_documents; attempt=1 |
-| 8 | `RETRIEVAL` |  | SUCCESS | 16 | query=delegated financial authority approval limits and when two approval...; purpose=delegated_authority; result_count=4 |
-| 9 | `TOOL_CALL` |  | SUCCESS | 20 | tool=retrieve_finance_documents; attempt=1 |
-| 10 | `RETRIEVAL` |  | SUCCESS | 21 | query=duplicate invoice detection matching fields and fraud indicators; purpose=duplicate_and_fraud; result_count=4 |
-| 11 | `TOOL_CALL` |  | SUCCESS | 10 | tool=retrieve_finance_documents; attempt=1 |
-| 12 | `RETRIEVAL` |  | SUCCESS | 11 | query=vendor status values requiring a hold and verifying a bank account ...; purpose=vendor_controls; result_count=4 |
-| 13 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 94 | next_phase=GATHER_EVIDENCE |
+| 5 | `TOOL_CALL` |  | SUCCESS | 1 | tool=retrieve_finance_documents; attempt=1 |
+| 6 | `RETRIEVAL` |  | SUCCESS | 4 | query=three-way matching tolerance price variance quantity and goods rece...; purpose=three_way_match; result_count=4 |
+| 7 | `TOOL_CALL` |  | SUCCESS | 1 | tool=retrieve_finance_documents; attempt=1 |
+| 8 | `RETRIEVAL` |  | SUCCESS | 2 | query=delegated financial authority approval limits and when two approval...; purpose=delegated_authority; result_count=4 |
+| 9 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
+| 10 | `RETRIEVAL` |  | SUCCESS | 1 | query=duplicate invoice detection matching fields and fraud indicators; purpose=duplicate_and_fraud; result_count=4 |
+| 11 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
+| 12 | `RETRIEVAL` |  | SUCCESS | 1 | query=vendor status values requiring a hold and verifying a bank account ...; purpose=vendor_controls; result_count=4 |
+| 13 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 13 | next_phase=GATHER_EVIDENCE |
 | 14 | `PHASE_STARTED` | GATHER_EVIDENCE |  |  |  |
-| 15 | `TOOL_CALL` |  | SUCCESS | 21 | tool=get_vendor_record; attempt=1 |
-| 16 | `TOOL_CALL` |  | SUCCESS | 5 | tool=get_purchase_order; attempt=1 |
-| 17 | `TOOL_CALL` |  | SUCCESS | 4 | tool=check_invoice_history; attempt=1 |
-| 18 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 40 | next_phase=RECONCILE |
+| 15 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_vendor_record; attempt=1 |
+| 16 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_purchase_order; attempt=1 |
+| 17 | `TOOL_CALL` |  | SUCCESS | 0 | tool=check_invoice_history; attempt=1 |
+| 18 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 7 | next_phase=RECONCILE |
 | 19 | `PHASE_STARTED` | RECONCILE |  |  |  |
 | 20 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=three_way_match; exception_count=0 |
 | 21 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=duplicate_check; exception_count=0 |
 | 22 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=vendor_status_check; exception_count=0 |
-| 23 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 6 | next_phase=ASSESS_RISK |
-| 24 | `PHASE_STARTED` | ASSESS_RISK |  |  |  |
-| 25 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=EvidenceSynthesis; attempt=1 |
-| 26 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 3 | next_phase=RECOMMEND |
-| 27 | `PHASE_STARTED` | RECOMMEND |  |  |  |
-| 28 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=RecommendationNarrative; attempt=1 |
-| 29 | `RECOMMENDATION_READY` | RECOMMEND | APPROVE_FOR_POSTING |  | outcome=APPROVE_FOR_POSTING |
-| 30 | `APPROVAL_REQUESTED` | RECOMMEND | AWAITING_HUMAN_DECISION |  | approval_id=apr_589d08df023246de; requested_outcome=APPROVE_FOR_POSTING |
-| 31 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 8 | next_phase=AWAITING_APPROVAL |
-| 32 | `APPROVAL_RESOLVED` | AWAITING_APPROVAL | APPROVED |  | approval_id=apr_589d08df023246de |
-| 33 | `PHASE_STARTED` | EXECUTE_DECISION |  |  |  |
-| 34 | `DECISION_SUBMITTED` | EXECUTE_DECISION | RECORDED | 1 | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-0ED8A5505975; replayed=False |
-| 35 | `PHASE_COMPLETED` | EXECUTE_DECISION | SUCCESS | 4 | next_phase=COMPLETED |
-| 36 | `RUN_COMPLETED` | COMPLETED | COMPLETED |  | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-0ED8A5505975; exception_count=0; status=COMPLETED |
+| 23 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=payment_instructions; exception_count=0 |
+| 24 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=segregation_of_duties; exception_count=0 |
+| 25 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=tax_assessment; exception_count=0 |
+| 26 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=payment_terms; exception_count=0 |
+| 27 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=repeated_non_po; exception_count=0 |
+| 28 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 7 | next_phase=ASSESS_RISK |
+| 29 | `PHASE_STARTED` | ASSESS_RISK |  |  |  |
+| 30 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=EvidenceSynthesis; attempt=1 |
+| 31 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 1 | next_phase=RECOMMEND |
+| 32 | `PHASE_STARTED` | RECOMMEND |  |  |  |
+| 33 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=RecommendationNarrative; attempt=1 |
+| 34 | `RECOMMENDATION_READY` | RECOMMEND | APPROVE_FOR_POSTING |  | outcome=APPROVE_FOR_POSTING |
+| 35 | `APPROVAL_REQUESTED` | RECOMMEND | AWAITING_HUMAN_DECISION |  | approval_id=apr_0ef73e6e806e45a8; requested_outcome=APPROVE_FOR_POSTING |
+| 36 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 5 | next_phase=AWAITING_APPROVAL |
+| 37 | `APPROVAL_RESOLVED` | AWAITING_APPROVAL | APPROVED |  | approval_id=apr_0ef73e6e806e45a8 |
+| 38 | `PHASE_STARTED` | EXECUTE_DECISION |  |  |  |
+| 39 | `DECISION_SUBMITTED` | EXECUTE_DECISION | RECORDED | 0 | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-EA12776ADF4B; replayed=False |
+| 40 | `PHASE_COMPLETED` | EXECUTE_DECISION | SUCCESS | 3 | next_phase=COMPLETED |
+| 41 | `RUN_COMPLETED` | COMPLETED | COMPLETED |  | outcome=APPROVE_FOR_POSTING; decision_ref=DEC-EA12776ADF4B; exception_count=0; status=COMPLETED |
 

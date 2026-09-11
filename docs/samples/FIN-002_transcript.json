@@ -2,7 +2,7 @@
   "case_id": "FIN-002",
   "intent": "Duplicate invoice. Invoice number and amount match an already-paid record. Expect REJECT_DUPLICATE with both record identifiers cited, and no proposal to pay.",
   "summary": {
-    "run_id": "run_afe1fefb27e44b15",
+    "run_id": "run_22eea254acbf434d",
     "case_id": "FIN-002",
     "status": "AWAITING_APPROVAL",
     "phase": "AWAITING_APPROVAL",
@@ -46,7 +46,8 @@
         "po_line_number": 1
       }
     ],
-    "requested_by": "U-2210"
+    "requested_by": "U-2210",
+    "cost_centre": "CC-2200 Facilities"
   },
   "recommendation": {
     "outcome": "REJECT_DUPLICATE",
@@ -175,6 +176,21 @@
     ],
     "calculations": [
       {
+        "name": "invoice_internal_consistency",
+        "inputs": {
+          "invoice_net": "8400.00",
+          "sum_of_line_totals": "8400.00",
+          "rounding_slack": "0.01"
+        },
+        "formula": "invoice_net - sum(line_total)",
+        "result": "0.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-001 \u00a72",
+        "passed": null,
+        "note": "The invoice against itself, not against the purchase order. A document that does not add up cannot produce a meaningful tolerance comparison."
+      },
+      {
         "name": "line_1_expected_value",
         "inputs": {
           "quantity_invoiced": "1",
@@ -272,7 +288,7 @@
         "rounding": "ROUND_HALF_UP",
         "policy_ref": "FIN-POL-002 \u00a72",
         "passed": null,
-        "note": "The widest single-line allowance on the order, not the sum of the line allowances. Summing would let a variance be divided across lines until each slice fits, which FIN-POL-002 \u00a73 prohibits."
+        "note": "The widest single-line allowance on the order, not the sum of the line allowances. Summing would let a variance be divided across lines until each slice fits. FIN-POL-002 \u00a71 requires a document-total check; \u00a73 prohibits splitting a variance across invoices, and this limit applies the same principle within one document."
       },
       {
         "name": "duplicate_amount_variance_AP-2026-11702",
@@ -284,10 +300,25 @@
         "formula": "abs(candidate_gross - prior_gross) / prior_gross x 100",
         "result": "0.00",
         "currency": null,
-        "rounding": "ROUND_HALF_UP",
+        "rounding": "ROUND_HALF_EVEN",
         "policy_ref": "FIN-POL-005 \u00a71",
         "passed": null,
-        "note": "Percentage, not currency."
+        "note": "Percentage, not currency. The comparison against the 0.5% bound uses the unrounded value; this figure is rounded for reading, and the rounding recorded is the one that produced it."
+      },
+      {
+        "name": "tax_expected_at_configured_rate",
+        "inputs": {
+          "invoice_net": "8400.00",
+          "rate_percent": "10",
+          "invoice_tax": "840.00"
+        },
+        "formula": "invoice_net x rate_percent / 100",
+        "result": "840.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-002 \u00a75",
+        "passed": null,
+        "note": "Assessed separately from the price comparison, as FIN-POL-002 \u00a72 requires. No clause in the corpus states a tax rate; the expected figure comes from configuration and this comparison is informational."
       },
       {
         "name": "required_approval_authority",
@@ -307,7 +338,9 @@
       }
     ],
     "assumptions": [
-      "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved."
+      "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved.",
+      "The expected tax rate is taken as 10% (Australian GST, matching the corpus jurisdiction). The policy corpus states no rate, so this is a configured assumption about the environment and no finding derived from it blocks a case.",
+      "The invoice date was used as the receipt date. FIN-POL-006 \u00a71 runs terms from receipt of a valid invoice, and no separate receipt timestamp is captured."
     ],
     "confidence": {
       "score": "0.62",
@@ -344,7 +377,7 @@
   },
   "final_result": {
     "case_id": "FIN-002",
-    "run_id": "run_afe1fefb27e44b15",
+    "run_id": "run_22eea254acbf434d",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -408,6 +441,21 @@
     ],
     "calculations": [
       {
+        "name": "invoice_internal_consistency",
+        "inputs": {
+          "invoice_net": "8400.00",
+          "sum_of_line_totals": "8400.00",
+          "rounding_slack": "0.01"
+        },
+        "formula": "invoice_net - sum(line_total)",
+        "result": "0.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-001 \u00a72",
+        "passed": null,
+        "note": "The invoice against itself, not against the purchase order. A document that does not add up cannot produce a meaningful tolerance comparison."
+      },
+      {
         "name": "line_1_expected_value",
         "inputs": {
           "quantity_invoiced": "1",
@@ -505,7 +553,7 @@
         "rounding": "ROUND_HALF_UP",
         "policy_ref": "FIN-POL-002 \u00a72",
         "passed": null,
-        "note": "The widest single-line allowance on the order, not the sum of the line allowances. Summing would let a variance be divided across lines until each slice fits, which FIN-POL-002 \u00a73 prohibits."
+        "note": "The widest single-line allowance on the order, not the sum of the line allowances. Summing would let a variance be divided across lines until each slice fits. FIN-POL-002 \u00a71 requires a document-total check; \u00a73 prohibits splitting a variance across invoices, and this limit applies the same principle within one document."
       },
       {
         "name": "duplicate_amount_variance_AP-2026-11702",
@@ -517,10 +565,25 @@
         "formula": "abs(candidate_gross - prior_gross) / prior_gross x 100",
         "result": "0.00",
         "currency": null,
-        "rounding": "ROUND_HALF_UP",
+        "rounding": "ROUND_HALF_EVEN",
         "policy_ref": "FIN-POL-005 \u00a71",
         "passed": null,
-        "note": "Percentage, not currency."
+        "note": "Percentage, not currency. The comparison against the 0.5% bound uses the unrounded value; this figure is rounded for reading, and the rounding recorded is the one that produced it."
+      },
+      {
+        "name": "tax_expected_at_configured_rate",
+        "inputs": {
+          "invoice_net": "8400.00",
+          "rate_percent": "10",
+          "invoice_tax": "840.00"
+        },
+        "formula": "invoice_net x rate_percent / 100",
+        "result": "840.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-002 \u00a75",
+        "passed": null,
+        "note": "Assessed separately from the price comparison, as FIN-POL-002 \u00a72 requires. No clause in the corpus states a tax rate; the expected figure comes from configuration and this comparison is informational."
       },
       {
         "name": "required_approval_authority",
@@ -571,6 +634,20 @@
     "unknowns": [],
     "policy_findings": [
       {
+        "rule": "minimum_evidence_present",
+        "policy_ref": "FIN-POL-001 \u00a72",
+        "satisfied": true,
+        "detail": "present: supplier legal name, invoice number, currency, gross amount, invoice date, purchase-order reference",
+        "citations": []
+      },
+      {
+        "rule": "document_total_agrees_with_lines",
+        "policy_ref": "FIN-POL-001 \u00a73",
+        "satisfied": true,
+        "detail": "lines sum to 8400.00 AUD against a document net of 8400.00 AUD. Engine integrity check, not a clause.",
+        "citations": []
+      },
+      {
         "rule": "purchase_order_approved",
         "policy_ref": "FIN-POL-002 \u00a71",
         "satisfied": true,
@@ -606,24 +683,59 @@
         "citations": []
       },
       {
-        "rule": "bank_details_stable",
+        "rule": "first_payment_after_bank_change_co_approved",
         "policy_ref": "FIN-POL-004 \u00a72",
         "satisfied": true,
-        "detail": "no bank-detail change inside the 30-day window",
-        "citations": []
-      },
-      {
-        "rule": "segregation_of_duties",
-        "policy_ref": "FIN-POL-001 \u00a74",
-        "satisfied": true,
-        "detail": "requester and vendor creator are different people",
+        "detail": "bank details last changed on 2023-05-10, and a settled payment has followed, so the first-payment requirement is discharged",
         "citations": []
       },
       {
         "rule": "legal_name_agreement",
-        "policy_ref": "FIN-POL-004 \u00a74",
+        "policy_ref": "FIN-POL-004 \u00a71",
         "satisfied": true,
         "detail": "invoice vendor name matches the master record",
+        "citations": []
+      },
+      {
+        "rule": "payment_instructions_match_vendor_master",
+        "policy_ref": "FIN-POL-001 \u00a75",
+        "satisfied": true,
+        "detail": "No payment instructions were asserted in the case notes or attachments, so nothing contradicts the vendor master.",
+        "citations": []
+      },
+      {
+        "rule": "segregation_of_duties_partial",
+        "policy_ref": "FIN-POL-001 \u00a74",
+        "satisfied": true,
+        "detail": "Nothing comparable at reconciliation: the invoice is at or below 25000 AUD, so the three-party rule does not apply. Pending an approver: the five-business-day bar on the vendor's creator approving, which needs an approver.",
+        "citations": []
+      },
+      {
+        "rule": "tax_assessed_separately",
+        "policy_ref": "FIN-POL-002 \u00a72",
+        "satisfied": true,
+        "detail": "stated tax 840.00 AUD agrees with 10% of the net within 0.05 AUD",
+        "citations": []
+      },
+      {
+        "rule": "agreed_payment_terms_applied",
+        "policy_ref": "FIN-POL-006 \u00a71",
+        "satisfied": true,
+        "detail": "30 days from purchase order PO-77001",
+        "citations": []
+      },
+      {
+        "rule": "due_date_computed_from_agreed_terms",
+        "policy_ref": "FIN-POL-006 \u00a71",
+        "satisfied": true,
+        "detail": "2026-09-10 plus 30 calendar days from purchase order PO-77001 gives 2026-10-10, a non-business day, so payable 2026-10-09, the preceding business day under FIN-POL-006 \u00a72. Weekends only: the corpus references public holidays and supplies no calendar, so none is applied.",
+        "citations": []
+      },
+      {
+        "rule": "scheduled_for_a_standard_payment_run",
+        "policy_ref": "FIN-POL-006 \u00a72",
+        "satisfied": true,
+        "detail": "proposed run 2026-10-08, the last standard run on or before 2026-10-09. Proposal only: under FIN-POL-006 \u00a74 an agent may prepare a schedule and may not release a payment file.",
         "citations": []
       },
       {
@@ -783,6 +895,21 @@
       ],
       "calculations": [
         {
+          "name": "invoice_internal_consistency",
+          "inputs": {
+            "invoice_net": "8400.00",
+            "sum_of_line_totals": "8400.00",
+            "rounding_slack": "0.01"
+          },
+          "formula": "invoice_net - sum(line_total)",
+          "result": "0.00",
+          "currency": "AUD",
+          "rounding": "ROUND_HALF_UP",
+          "policy_ref": "FIN-POL-001 \u00a72",
+          "passed": null,
+          "note": "The invoice against itself, not against the purchase order. A document that does not add up cannot produce a meaningful tolerance comparison."
+        },
+        {
           "name": "line_1_expected_value",
           "inputs": {
             "quantity_invoiced": "1",
@@ -880,7 +1007,7 @@
           "rounding": "ROUND_HALF_UP",
           "policy_ref": "FIN-POL-002 \u00a72",
           "passed": null,
-          "note": "The widest single-line allowance on the order, not the sum of the line allowances. Summing would let a variance be divided across lines until each slice fits, which FIN-POL-002 \u00a73 prohibits."
+          "note": "The widest single-line allowance on the order, not the sum of the line allowances. Summing would let a variance be divided across lines until each slice fits. FIN-POL-002 \u00a71 requires a document-total check; \u00a73 prohibits splitting a variance across invoices, and this limit applies the same principle within one document."
         },
         {
           "name": "duplicate_amount_variance_AP-2026-11702",
@@ -892,10 +1019,25 @@
           "formula": "abs(candidate_gross - prior_gross) / prior_gross x 100",
           "result": "0.00",
           "currency": null,
-          "rounding": "ROUND_HALF_UP",
+          "rounding": "ROUND_HALF_EVEN",
           "policy_ref": "FIN-POL-005 \u00a71",
           "passed": null,
-          "note": "Percentage, not currency."
+          "note": "Percentage, not currency. The comparison against the 0.5% bound uses the unrounded value; this figure is rounded for reading, and the rounding recorded is the one that produced it."
+        },
+        {
+          "name": "tax_expected_at_configured_rate",
+          "inputs": {
+            "invoice_net": "8400.00",
+            "rate_percent": "10",
+            "invoice_tax": "840.00"
+          },
+          "formula": "invoice_net x rate_percent / 100",
+          "result": "840.00",
+          "currency": "AUD",
+          "rounding": "ROUND_HALF_UP",
+          "policy_ref": "FIN-POL-002 \u00a75",
+          "passed": null,
+          "note": "Assessed separately from the price comparison, as FIN-POL-002 \u00a72 requires. No clause in the corpus states a tax rate; the expected figure comes from configuration and this comparison is informational."
         },
         {
           "name": "required_approval_authority",
@@ -915,7 +1057,9 @@
         }
       ],
       "assumptions": [
-        "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved."
+        "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved.",
+        "The expected tax rate is taken as 10% (Australian GST, matching the corpus jurisdiction). The policy corpus states no rate, so this is a configured assumption about the environment and no finding derived from it blocks a case.",
+        "The invoice date was used as the receipt date. FIN-POL-006 \u00a71 runs terms from receipt of a valid invoice, and no separate receipt timestamp is captured."
       ],
       "confidence": {
         "score": "0.62",
@@ -1008,7 +1152,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1020,7 +1164,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1309,7 +1453,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 13,
+      "duration_ms": 10,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1377,7 +1521,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "supplier payment instructions urgent bank account change new account details",
         "query_terms": [
@@ -1439,7 +1583,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 9,
+      "duration_ms": 6,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1487,11 +1631,71 @@
       "payload": {
         "rule_group": "vendor_status_check",
         "exception_count": 0,
-        "finding_count": 4
+        "finding_count": 3
       }
     },
     {
       "sequence": 25,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "payment_instructions",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 26,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "segregation_of_duties",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 27,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "tax_assessment",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 28,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "payment_terms",
+        "exception_count": 0,
+        "finding_count": 3
+      }
+    },
+    {
+      "sequence": 29,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "repeated_non_po",
+        "exception_count": 0,
+        "finding_count": 0
+      }
+    },
+    {
+      "sequence": 30,
       "event_type": "EXCEPTION_RAISED",
       "phase": "RECONCILE",
       "outcome": "RAISED",
@@ -1508,11 +1712,11 @@
       }
     },
     {
-      "sequence": 26,
+      "sequence": 31,
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 5,
+      "duration_ms": 7,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1520,7 +1724,7 @@
       }
     },
     {
-      "sequence": 27,
+      "sequence": 32,
       "event_type": "PHASE_STARTED",
       "phase": "ASSESS_RISK",
       "outcome": null,
@@ -1528,7 +1732,7 @@
       "payload": {}
     },
     {
-      "sequence": 28,
+      "sequence": 33,
       "event_type": "INJECTION_ATTEMPT_DETECTED",
       "phase": "ASSESS_RISK",
       "outcome": "BLOCKED",
@@ -1546,7 +1750,7 @@
       }
     },
     {
-      "sequence": 29,
+      "sequence": 34,
       "event_type": "MODEL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
@@ -1556,12 +1760,12 @@
         "model": "fake-deterministic-1",
         "schema": "EvidenceSynthesis",
         "attempt": 1,
-        "input_tokens": 2829,
+        "input_tokens": 2949,
         "output_tokens": 120
       }
     },
     {
-      "sequence": 30,
+      "sequence": 35,
       "event_type": "PHASE_COMPLETED",
       "phase": "ASSESS_RISK",
       "outcome": "SUCCESS",
@@ -1573,7 +1777,7 @@
       }
     },
     {
-      "sequence": 31,
+      "sequence": 36,
       "event_type": "PHASE_STARTED",
       "phase": "RECOMMEND",
       "outcome": null,
@@ -1581,7 +1785,7 @@
       "payload": {}
     },
     {
-      "sequence": 32,
+      "sequence": 37,
       "event_type": "MODEL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
@@ -1591,12 +1795,12 @@
         "model": "fake-deterministic-1",
         "schema": "RecommendationNarrative",
         "attempt": 1,
-        "input_tokens": 722,
+        "input_tokens": 954,
         "output_tokens": 120
       }
     },
     {
-      "sequence": 33,
+      "sequence": 38,
       "event_type": "RECOMMENDATION_READY",
       "phase": "RECOMMEND",
       "outcome": "REJECT_DUPLICATE",
@@ -1615,13 +1819,13 @@
       }
     },
     {
-      "sequence": 34,
+      "sequence": 39,
       "event_type": "APPROVAL_REQUESTED",
       "phase": "RECOMMEND",
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_9670fd682ac547e7",
+        "approval_id": "apr_4ea21a2dc3af42b4",
         "requested_outcome": "REJECT_DUPLICATE",
         "amount": "9240.00",
         "currency": "AUD",
@@ -1633,11 +1837,11 @@
       }
     },
     {
-      "sequence": 35,
+      "sequence": 40,
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 6,
+      "duration_ms": 7,
       "payload": {
         "next_phase": "AWAITING_APPROVAL",
         "steps_used": 6,

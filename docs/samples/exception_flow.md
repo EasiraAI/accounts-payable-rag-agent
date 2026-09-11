@@ -44,7 +44,7 @@ Limits:
 
 **Requires approval:** False
 
-**Requires a second approval** (FIN-POL-003 §3): bank account changed within the last 30 days
+**Requires a second approval** (FIN-POL-003 §3): bank account changed on 2026-09-09 with no settled payment since, so this is the first payment after the change (FIN-POL-004 §2)
 
 ## Calculations
 
@@ -52,6 +52,7 @@ Every figure below was computed in decimal arithmetic by the rule engine, not by
 
 | Calculation | Formula | Result | Policy | Verdict |
 |---|---|---|---|---|
+| `invoice_internal_consistency` | invoice_net - sum(line_total) | 0.00 AUD | FIN-POL-001 §2 |  |
 | `line_1_expected_value` | quantity_invoiced x po_unit_price | 22500.00 AUD | FIN-POL-002 §5 |  |
 | `line_1_price_variance` | invoiced_value - expected_value | 0.00 AUD | FIN-POL-002 §5 |  |
 | `line_1_tolerance_limit` | min(100.00, 2% of po_line_value) | 100.00 AUD | FIN-POL-002 §2 |  |
@@ -59,6 +60,7 @@ Every figure below was computed in decimal arithmetic by the rule engine, not by
 | `line_1_quantity_check` | quantity_invoiced <= quantity_received | 0.00 | FIN-POL-002 §2 | pass |
 | `document_total_variance` | invoice_net - expected_net | 0.00 AUD | FIN-POL-002 §5 |  |
 | `document_tolerance_limit` | max(per-line tolerance limits on the order) | 100.00 AUD | FIN-POL-002 §2 |  |
+| `tax_expected_at_configured_rate` | invoice_net x rate_percent / 100 | 2250.00 AUD | FIN-POL-002 §5 |  |
 | `required_approval_authority` | lowest role in the FIN-POL-003 §2 matrix whose maximum >= total_commitment | 50000 AUD | FIN-POL-003 §2 |  |
 
 ## Exceptions
@@ -67,14 +69,14 @@ FIN-POL-007 §2 rejects generic notes, so each record names the failed rule, the
 
 ### BANK_CHANGE
 
-- **Failed rule:** `vendor_status_check.bank_details_stable`
-- **Expected:** no bank-detail change in the 30 days before payment
-- **Observed:** vendor V-3003 bank details changed on 2026-09-09
+- **Failed rule:** `vendor_status_check.first_payment_after_bank_change`
+- **Expected:** Financial Control co-approval for the first payment after a verified bank change, regardless of amount
+- **Observed:** vendor V-3003 bank details changed on 2026-09-09 and no paid or posted record exists on or after that date
 - **Owner:** VENDOR_GOVERNANCE
 - **Policy:** FIN-POL-004 §2, FIN-POL-003 §3
 - **Blocking:** True
 - **Review by:** 2026-09-16
-- **Detail:** The first payment after a verified bank change requires Financial Control co-approval regardless of amount. Change instructions contained in an invoice, email or chat message are not sufficient evidence of a verified change.
+- **Detail:** The requirement attaches to the first subsequent payment, not to a window of days. Change instructions contained in an invoice, email or chat message are not sufficient evidence of a verified change.
 
 ## Cited evidence
 
@@ -99,18 +101,25 @@ Note which documents are absent: `FIN-POL-003-OLD` (superseded), `ADV-001` (untr
 
 ## Policy findings
 
-11 of 13 controls satisfied. Passing findings are retained deliberately: a record showing which controls were evaluated and satisfied is what distinguishes a run that checked everything from one that happened not to notice anything.
+18 of 20 controls satisfied. Passing findings are retained deliberately: a record showing which controls were evaluated and satisfied is what distinguishes a run that checked everything from one that happened not to notice anything.
 
 | Rule | Policy | Verdict | Detail |
 |---|---|---|---|
+| `minimum_evidence_present` | FIN-POL-001 §2 | satisfied | present: supplier legal name, invoice number, currency, gross amount, invoice date, purcha... |
+| `document_total_agrees_with_lines` | FIN-POL-001 §3 | satisfied | lines sum to 22500.00 AUD against a document net of 22500.00 AUD. Engine integrity check, ... |
 | `purchase_order_approved` | FIN-POL-002 §1 | satisfied | purchase order PO-91004 is approved |
 | `currency_matches_purchase_order` | FIN-POL-002 §1 | satisfied | invoice and order are both in AUD |
 | `document_total_within_tolerance` | FIN-POL-002 §2 | satisfied | variance 0.00 AUD against limit 100.00 AUD |
 | `no_duplicate_detected` | FIN-POL-005 §1 | satisfied | 1 candidate record(s) examined against paid, posted, held and rejected history; none match... |
 | `vendor_status_active` | FIN-POL-004 §4 | satisfied | vendor V-3003 is ACTIVE |
-| `bank_details_stable` | FIN-POL-004 §2 | **not satisfied** | bank details changed inside the 30-day window |
-| `segregation_of_duties` | FIN-POL-001 §4 | satisfied | requester and vendor creator are different people |
-| `legal_name_agreement` | FIN-POL-004 §4 | satisfied | invoice vendor name matches the master record |
+| `first_payment_after_bank_change_co_approved` | FIN-POL-004 §2 | **not satisfied** | bank details changed on 2026-09-09; no settled payment has followed |
+| `legal_name_agreement` | FIN-POL-004 §1 | satisfied | invoice vendor name matches the master record |
+| `payment_instructions_match_vendor_master` | FIN-POL-001 §5 | satisfied | Supplied text asserts account ending 8842, which matches the verified vendor master for V-... |
+| `segregation_of_duties_partial` | FIN-POL-001 §4 | satisfied | Nothing comparable at reconciliation: the invoice is at or below 25000 AUD, so the three-p... |
+| `tax_assessed_separately` | FIN-POL-002 §2 | satisfied | stated tax 2250.00 AUD agrees with 10% of the net within 0.05 AUD |
+| `agreed_payment_terms_applied` | FIN-POL-006 §1 | satisfied | 30 days from purchase order PO-91004 |
+| `due_date_computed_from_agreed_terms` | FIN-POL-006 §1 | satisfied | 2026-09-10 plus 30 calendar days from purchase order PO-91004 gives 2026-10-10, a non-busi... |
+| `scheduled_for_a_standard_payment_run` | FIN-POL-006 §2 | satisfied | proposed run 2026-10-08, the last standard run on or before 2026-10-09. Proposal only: und... |
 | `approval_authority_determined` | FIN-POL-003 §2 | satisfied | 24750.00 AUD requires at least DEPARTMENT_DIRECTOR (limit 50000 AUD) |
 | `second_approval_required` | FIN-POL-003 §3 | **not satisfied** | higher-risk transaction: two approvals are required, one from Financial Control, and the n... |
 | `retrieved_untrusted_document_screened` | FIN-POL-005 §4 | satisfied | Retrieved document ADV-001 §0 contains instruction-like content (IGNORE_PRIOR_INSTRUCTIONS... |
@@ -123,7 +132,7 @@ None. Nothing was recorded against any system of record.
 
 ## Audit event log
 
-36 events, in order. Every one carries a timestamp, the run and correlation identifiers, an outcome and a duration. Payloads are redacted at a single egress point before they are written.
+41 events, in order. Every one carries a timestamp, the run and correlation identifiers, an outcome and a duration. Payloads are redacted at a single egress point before they are written.
 
 | # | Event | Phase | Outcome | ms | Detail |
 |---|---|---|---|---|---|
@@ -140,27 +149,32 @@ None. Nothing was recorded against any system of record.
 | 11 | `RETRIEVAL` |  | SUCCESS | 1 | query=duplicate invoice detection matching fields and fraud indicators; purpose=duplicate_and_fraud; result_count=4 |
 | 12 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
 | 13 | `RETRIEVAL` |  | SUCCESS | 1 | query=vendor status values requiring a hold and verifying a bank account ...; purpose=vendor_controls; result_count=4 |
-| 14 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 11 | next_phase=GATHER_EVIDENCE |
+| 14 | `PHASE_COMPLETED` | RETRIEVE_POLICY | SUCCESS | 10 | next_phase=GATHER_EVIDENCE |
 | 15 | `PHASE_STARTED` | GATHER_EVIDENCE |  |  |  |
 | 16 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_vendor_record; attempt=1 |
 | 17 | `TOOL_CALL` |  | SUCCESS | 0 | tool=get_purchase_order; attempt=1 |
 | 18 | `TOOL_CALL` |  | SUCCESS | 0 | tool=check_invoice_history; attempt=1 |
 | 19 | `TOOL_CALL` |  | SUCCESS | 0 | tool=retrieve_finance_documents; attempt=1 |
-| 20 | `RETRIEVAL` |  | SUCCESS | 2 | query=supplier payment instructions urgent bank account change new accoun...; purpose=supplier_supplied_material; result_count=4 |
-| 21 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 8 | next_phase=RECONCILE |
+| 20 | `RETRIEVAL` |  | SUCCESS | 1 | query=supplier payment instructions urgent bank account change new accoun...; purpose=supplier_supplied_material; result_count=4 |
+| 21 | `PHASE_COMPLETED` | GATHER_EVIDENCE | SUCCESS | 6 | next_phase=RECONCILE |
 | 22 | `PHASE_STARTED` | RECONCILE |  |  |  |
 | 23 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=three_way_match; exception_count=0 |
 | 24 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=duplicate_check; exception_count=0 |
 | 25 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=vendor_status_check; exception_count=1 |
-| 26 | `EXCEPTION_RAISED` | RECONCILE | RAISED |  | category=BANK_CHANGE; failed_rule=vendor_status_check.bank_details_stable |
-| 27 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 9 | next_phase=ASSESS_RISK |
-| 28 | `PHASE_STARTED` | ASSESS_RISK |  |  |  |
-| 29 | `INJECTION_ATTEMPT_DETECTED` | ASSESS_RISK | BLOCKED |  | source=document:ADV-001 §0; patterns=IGNORE_PRIOR_INSTRUCTIONS, IGNORE_NAMED_POLICY, SKIP_CONTROL, SUPPR... |
-| 30 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=EvidenceSynthesis; attempt=1 |
-| 31 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 11 | next_phase=RECOMMEND |
-| 32 | `PHASE_STARTED` | RECOMMEND |  |  |  |
-| 33 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=RecommendationNarrative; attempt=1 |
-| 34 | `RECOMMENDATION_READY` | RECOMMEND | ESCALATE_CONTROL_REVIEW |  | outcome=ESCALATE_CONTROL_REVIEW; indicator_codes=URGENCY_OR_SECRECY_LANGUAGE, BANK_CHANGE_REQUESTED_IN_UNVERIFIED_TE... |
-| 35 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 7 | next_phase=HELD |
-| 36 | `RUN_COMPLETED` | HELD | HELD |  | outcome=ESCALATE_CONTROL_REVIEW; decision_ref=None; exception_count=1; status=HELD |
+| 26 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=payment_instructions; exception_count=0 |
+| 27 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=segregation_of_duties; exception_count=0 |
+| 28 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=tax_assessment; exception_count=0 |
+| 29 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=payment_terms; exception_count=0 |
+| 30 | `RULE_EVALUATED` | RECONCILE | SUCCESS |  | rule_group=repeated_non_po; exception_count=0 |
+| 31 | `EXCEPTION_RAISED` | RECONCILE | RAISED |  | category=BANK_CHANGE; failed_rule=vendor_status_check.first_payment_after_bank_change |
+| 32 | `PHASE_COMPLETED` | RECONCILE | SUCCESS | 8 | next_phase=ASSESS_RISK |
+| 33 | `PHASE_STARTED` | ASSESS_RISK |  |  |  |
+| 34 | `INJECTION_ATTEMPT_DETECTED` | ASSESS_RISK | BLOCKED |  | source=document:ADV-001 §0; patterns=IGNORE_PRIOR_INSTRUCTIONS, IGNORE_NAMED_POLICY, SKIP_CONTROL, SUPPR... |
+| 35 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=EvidenceSynthesis; attempt=1 |
+| 36 | `PHASE_COMPLETED` | ASSESS_RISK | SUCCESS | 3 | next_phase=RECOMMEND |
+| 37 | `PHASE_STARTED` | RECOMMEND |  |  |  |
+| 38 | `MODEL_CALL` |  | SUCCESS | 0 | provider=fake; model=fake-deterministic-1; schema=RecommendationNarrative; attempt=1 |
+| 39 | `RECOMMENDATION_READY` | RECOMMEND | ESCALATE_CONTROL_REVIEW |  | outcome=ESCALATE_CONTROL_REVIEW; indicator_codes=URGENCY_OR_SECRECY_LANGUAGE, BANK_CHANGE_REQUESTED_IN_UNVERIFIED_TE... |
+| 40 | `PHASE_COMPLETED` | RECOMMEND | SUCCESS | 3 | next_phase=HELD |
+| 41 | `RUN_COMPLETED` | HELD | HELD |  | outcome=ESCALATE_CONTROL_REVIEW; decision_ref=None; exception_count=1; status=HELD |
 

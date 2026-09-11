@@ -942,3 +942,69 @@ class TestSelfContradictoryInvoiceIsRejectedAsInvalid:
         state = orchestrator.start(_case("FIN-001"))
         assert state.recommendation is not None
         assert state.recommendation.outcome.value == "APPROVE_FOR_POSTING"
+
+
+class TestRepeatSignatureSpendsNothing:
+    """A retried delivery on a *pending* two-signature approval must be inert.
+
+    The defect: the short-circuit only fired once the approval was settled, so a repeat
+    against a pending approval ran the full path — a tool call to re-read the authority
+    register and a fresh authority validation — before the signature table's primary key
+    detected the duplicate. Nothing was recorded twice, so nothing was unsafe, but the
+    documented claim that a duplicate delivery performs no validation and no tool call was
+    false for the case where a caller is most likely to retry: it has not seen the gate open.
+    """
+
+    def test_the_repeat_is_reported_as_a_replay(self, settings, repository, retriever, tmp_path):
+        orchestrator = _orchestrator(
+            settings, repository, retriever, mock_data_dir=_overseas_mock_data(tmp_path)
+        )
+        state = orchestrator.start(_case("FIN-001"))
+        _approve(orchestrator, state.run_id, state.approval_id)
+        _, replayed = _approve(orchestrator, state.run_id, state.approval_id)
+        assert replayed
+
+    def test_the_repeat_spends_no_tool_call(self, settings, repository, retriever, tmp_path):
+        orchestrator = _orchestrator(
+            settings, repository, retriever, mock_data_dir=_overseas_mock_data(tmp_path)
+        )
+        state = orchestrator.start(_case("FIN-001"))
+        # A delegated approval, because a delegation is what makes the resume path spend a
+        # tool call: it has to read the authority register. DEL-2026-0044 names U-7781.
+        signature = {
+            "approver_id": "U-7781",
+            "role": "DEPARTMENT_DIRECTOR",
+            "delegation_id": "DEL-2026-0044",
+        }
+        _approve(orchestrator, state.run_id, state.approval_id, **signature)
+        spent_after_first = repository.require_run(state.run_id).tool_calls_used
+        _approve(orchestrator, state.run_id, state.approval_id, **signature)
+        assert repository.require_run(state.run_id).tool_calls_used == spent_after_first
+
+    def test_the_gate_stays_closed(self, settings, repository, retriever, tmp_path):
+        """Two deliveries from one person are one signature, so nothing is posted."""
+        orchestrator = _orchestrator(
+            settings, repository, retriever, mock_data_dir=_overseas_mock_data(tmp_path)
+        )
+        state = orchestrator.start(_case("FIN-001"))
+        _approve(orchestrator, state.run_id, state.approval_id)
+        _approve(orchestrator, state.run_id, state.approval_id)
+        assert repository.count_decisions(state.run_id) == 0
+        assert repository.require_run(state.run_id).status.value == "AWAITING_APPROVAL"
+
+    def test_the_replay_event_says_why_nothing_happened(
+        self, settings, repository, retriever, tmp_path
+    ):
+        """FIN-POL-001 §6 requires the audit trail to explain what the system did."""
+        orchestrator = _orchestrator(
+            settings, repository, retriever, mock_data_dir=_overseas_mock_data(tmp_path)
+        )
+        state = orchestrator.start(_case("FIN-001"))
+        _approve(orchestrator, state.run_id, state.approval_id)
+        _approve(orchestrator, state.run_id, state.approval_id)
+        notes = [
+            event.payload.get("note", "")
+            for event in repository.list_events(state.run_id)
+            if event.event_type == "APPROVAL_REPLAYED"
+        ]
+        assert any("already signed" in note for note in notes)

@@ -138,15 +138,21 @@ class TestDueDate:
         assert result.due_date.weekday() == 5
         assert result.payable_on == date(2026, 10, 9)
 
-    def test_a_weekend_due_date_sets_the_non_business_day_flag(self) -> None:
-        """Read by the fraud assessment: this is what makes a manual request a weekend one."""
+    def test_a_weekend_due_date_is_recorded_as_such(self) -> None:
+        """Recorded for the schedule only.
+
+        A version of this fed the flag to the weekend manual-payment indicator, which was
+        wrong twice over: the payment does not settle on that day, because §2 has already
+        moved it, and a due date is arithmetic rather than something a supplier asked for.
+        """
         result = _assess(invoice=_invoice(invoice_date=date(2026, 9, 10)))
-        assert result.settlement_on_non_business_day
+        assert result.due_date_on_non_business_day
+        assert result.payable_on.weekday() < 5
 
     def test_a_weekday_due_date_is_left_alone(self) -> None:
         result = _assess(invoice=_invoice(invoice_date=date(2026, 9, 9)))
         assert result.payable_on == result.due_date
-        assert not result.settlement_on_non_business_day
+        assert not result.due_date_on_non_business_day
 
     def test_a_substituted_invoice_date_is_recorded_as_an_assumption(self) -> None:
         result = _assess(invoice_date_supplied=False)
@@ -197,3 +203,110 @@ class TestProposedRun:
             f for f in result.findings if f.rule == "scheduled_for_a_standard_payment_run"
         )
         assert "may not release" in finding.detail
+
+
+class TestNoRunWithinTheTerms:
+    """A future due date with no standard run before it is not the same as being overdue.
+
+    The defect: the proposal returned ``None`` whenever no Tuesday or Thursday fell between
+    today and the due date, and the code read that as "already due". A short term ending on a
+    Friday or a Monday produces exactly that, so an invoice payable next Monday was reported as
+    at or past its due date, with an exception steering the reader towards FIN-POL-006 §3's
+    manual payment when §2's answer was simply the next run.
+    """
+
+    def test_a_future_due_date_with_no_run_before_it_is_not_already_due(self) -> None:
+        # Processing on Friday 2026-09-11 with a two-day term: due Sunday, payable Friday the
+        # 11th itself, and the only runs are Tuesday and Thursday.
+        result = _assess(
+            invoice=_invoice(invoice_date=date(2026, 9, 9)),
+            purchase_order=_order(terms=2),
+            printed_terms_days=2,
+        )
+        assert not result.already_due
+
+    def test_the_proposal_is_the_next_standard_run_after_the_due_date(self) -> None:
+        """Late is unavoidable here, so the soonest run is more useful than no answer."""
+        result = _assess(
+            invoice=_invoice(invoice_date=date(2026, 9, 9)),
+            purchase_order=_order(terms=2),
+            printed_terms_days=2,
+        )
+        assert result.proposed_run_date == date(2026, 9, 15)  # the following Tuesday
+        assert not result.meets_agreed_terms
+
+    def test_the_exception_states_the_lateness_rather_than_claiming_it_is_overdue(self) -> None:
+        result = _assess(
+            invoice=_invoice(invoice_date=date(2026, 9, 9)),
+            purchase_order=_order(terms=2),
+            printed_terms_days=2,
+        )
+        exception = next(
+            e
+            for e in result.exceptions
+            if e.failed_rule == "payment_terms.standard_run_available_before_due_date"
+        )
+        assert "after the due date" in exception.observed
+        assert not exception.blocking
+
+    def test_a_genuinely_past_due_invoice_still_says_so(self) -> None:
+        result = _assess(invoice=_invoice(invoice_date=date(2026, 7, 1)))
+        assert result.already_due
+        exception = next(
+            e
+            for e in result.exceptions
+            if e.failed_rule == "payment_terms.standard_run_available_before_due_date"
+        )
+        assert "before the processing date" in exception.observed
+
+    def test_a_normal_term_still_meets_the_agreed_terms(self) -> None:
+        result = _assess()
+        assert result.meets_agreed_terms
+        assert result.proposed_run_date is not None
+        assert result.proposed_run_date <= result.payable_on
+
+
+class TestPrioritisation:
+    """FIN-POL-007 §4: invoices due within two business days may be prioritised.
+
+    The control was unimplemented because the due date was not computed. It is now, so the
+    input exists. §4's own sentence limits what may follow: "urgency does not relax controls",
+    so this orders a queue and changes nothing else.
+    """
+
+    def test_a_case_due_inside_the_window_may_be_prioritised(self) -> None:
+        # Processing Friday 2026-09-11; a 1-day term from the 9th is payable Thursday the
+        # 10th, which is inside the window.
+        result = _assess(
+            invoice=_invoice(invoice_date=date(2026, 9, 9)),
+            purchase_order=_order(terms=1),
+            printed_terms_days=1,
+        )
+        assert result.may_be_prioritised
+
+    def test_a_case_due_well_ahead_may_not(self) -> None:
+        result = _assess()
+        assert not result.may_be_prioritised
+
+    def test_the_window_is_measured_in_business_days(self) -> None:
+        """Processing on a Friday, two business days reaches the following Tuesday."""
+        # Invoice dated 2026-09-08 with a 7-day term is payable Tuesday 2026-09-15.
+        result = _assess(
+            invoice=_invoice(invoice_date=date(2026, 9, 8)),
+            purchase_order=_order(terms=7),
+            printed_terms_days=7,
+        )
+        assert result.payable_on == date(2026, 9, 15)
+        assert result.may_be_prioritised
+
+    def test_the_finding_says_controls_are_unchanged(self) -> None:
+        """A reader must not take a priority flag for a relaxed threshold."""
+        result = _assess(
+            invoice=_invoice(invoice_date=date(2026, 9, 9)),
+            purchase_order=_order(terms=1),
+            printed_terms_days=1,
+        )
+        finding = next(
+            f for f in result.findings if f.rule == "exception_review_may_be_prioritised"
+        )
+        assert "does not relax controls" in finding.detail

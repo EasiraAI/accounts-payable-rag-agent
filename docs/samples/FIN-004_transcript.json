@@ -2,7 +2,7 @@
   "case_id": "FIN-004",
   "intent": "Missing evidence. The purchasing system times out on every attempt and no receipt exists. Expect bounded retries, the gap exposed as an unknown, a hold, and no approval request for payment.",
   "summary": {
-    "run_id": "run_6cd76882620a4482",
+    "run_id": "run_d9ab1754b5554071",
     "case_id": "FIN-004",
     "status": "HELD",
     "phase": "HELD",
@@ -10,6 +10,7 @@
     "steps_used": 6,
     "tool_calls_used": 9,
     "exceptions": [
+      "BANK_CHANGE",
       "MISSING_PO"
     ],
     "indicators": [],
@@ -42,7 +43,8 @@
         "po_line_number": 1
       }
     ],
-    "requested_by": "U-2210"
+    "requested_by": "U-2210",
+    "cost_centre": "CC-4100 Industrial Maintenance"
   },
   "recommendation": {
     "outcome": "HOLD_FOR_INFORMATION",
@@ -171,6 +173,36 @@
     ],
     "calculations": [
       {
+        "name": "invoice_internal_consistency",
+        "inputs": {
+          "invoice_net": "6000.00",
+          "sum_of_line_totals": "6000.00",
+          "rounding_slack": "0.01"
+        },
+        "formula": "invoice_net - sum(line_total)",
+        "result": "0.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-001 \u00a72",
+        "passed": null,
+        "note": "The invoice against itself, not against the purchase order. A document that does not add up cannot produce a meaningful tolerance comparison."
+      },
+      {
+        "name": "tax_expected_at_configured_rate",
+        "inputs": {
+          "invoice_net": "6000.00",
+          "rate_percent": "10",
+          "invoice_tax": "600.00"
+        },
+        "formula": "invoice_net x rate_percent / 100",
+        "result": "600.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-002 \u00a75",
+        "passed": null,
+        "note": "Assessed separately from the price comparison, as FIN-POL-002 \u00a72 requires. No clause in the corpus states a tax rate; the expected figure comes from configuration and this comparison is informational."
+      },
+      {
         "name": "required_approval_authority",
         "inputs": {
           "total_commitment": "6600.00",
@@ -188,7 +220,9 @@
       }
     ],
     "assumptions": [
-      "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved."
+      "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved.",
+      "The expected tax rate is taken as 10% (Australian GST, matching the corpus jurisdiction). The policy corpus states no rate, so this is a configured assumption about the environment and no finding derived from it blocks a case.",
+      "The invoice date was used as the receipt date. FIN-POL-006 \u00a71 runs terms from receipt of a valid invoice, and no separate receipt timestamp is captured."
     ],
     "confidence": {
       "score": "0.62",
@@ -216,16 +250,31 @@
         "next_review_date": "2026-09-16",
         "detail": "Matching cannot be performed without the order. Under FIN-POL-012 \u00a71 a missing purchase order is not automatically an emergency; non-PO processing is limited to the categories listed there.",
         "blocking": true
+      },
+      {
+        "category": "BANK_CHANGE",
+        "failed_rule": "vendor_status_check.first_payment_after_bank_change",
+        "expected": "Financial Control co-approval for the first payment after a verified bank change, regardless of amount",
+        "observed": "vendor V-4004 bank details changed on 2024-10-11 and no paid or posted record exists on or after that date",
+        "owner": "VENDOR_GOVERNANCE",
+        "policy_refs": [
+          "FIN-POL-004 \u00a72",
+          "FIN-POL-003 \u00a73"
+        ],
+        "citations": [],
+        "next_review_date": "2026-09-16",
+        "detail": "The requirement attaches to the first subsequent payment, not to a window of days. Change instructions contained in an invoice, email or chat message are not sufficient evidence of a verified change.",
+        "blocking": true
       }
     ],
     "next_action": "Route the exception to the owner named in the exception record and resume the case from the failed control once new evidence arrives.",
     "requires_approval": false,
-    "requires_second_approval": false,
-    "second_approval_reason": ""
+    "requires_second_approval": true,
+    "second_approval_reason": "bank account changed on 2024-10-11 with no settled payment since, so this is the first payment after the change (FIN-POL-004 \u00a72)"
   },
   "final_result": {
     "case_id": "FIN-004",
-    "run_id": "run_6cd76882620a4482",
+    "run_id": "run_d9ab1754b5554071",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -289,6 +338,36 @@
     ],
     "calculations": [
       {
+        "name": "invoice_internal_consistency",
+        "inputs": {
+          "invoice_net": "6000.00",
+          "sum_of_line_totals": "6000.00",
+          "rounding_slack": "0.01"
+        },
+        "formula": "invoice_net - sum(line_total)",
+        "result": "0.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-001 \u00a72",
+        "passed": null,
+        "note": "The invoice against itself, not against the purchase order. A document that does not add up cannot produce a meaningful tolerance comparison."
+      },
+      {
+        "name": "tax_expected_at_configured_rate",
+        "inputs": {
+          "invoice_net": "6000.00",
+          "rate_percent": "10",
+          "invoice_tax": "600.00"
+        },
+        "formula": "invoice_net x rate_percent / 100",
+        "result": "600.00",
+        "currency": "AUD",
+        "rounding": "ROUND_HALF_UP",
+        "policy_ref": "FIN-POL-002 \u00a75",
+        "passed": null,
+        "note": "Assessed separately from the price comparison, as FIN-POL-002 \u00a72 requires. No clause in the corpus states a tax rate; the expected figure comes from configuration and this comparison is informational."
+      },
+      {
         "name": "required_approval_authority",
         "inputs": {
           "total_commitment": "6600.00",
@@ -345,6 +424,20 @@
     ],
     "policy_findings": [
       {
+        "rule": "minimum_evidence_present",
+        "policy_ref": "FIN-POL-001 \u00a72",
+        "satisfied": true,
+        "detail": "present: supplier legal name, invoice number, currency, gross amount, invoice date, purchase-order reference",
+        "citations": []
+      },
+      {
+        "rule": "document_total_agrees_with_lines",
+        "policy_ref": "FIN-POL-001 \u00a73",
+        "satisfied": true,
+        "detail": "lines sum to 6000.00 AUD against a document net of 6000.00 AUD. Engine integrity check, not a clause.",
+        "citations": []
+      },
+      {
         "rule": "purchase_order_present",
         "policy_ref": "FIN-POL-002 \u00a71",
         "satisfied": false,
@@ -366,24 +459,59 @@
         "citations": []
       },
       {
-        "rule": "bank_details_stable",
+        "rule": "first_payment_after_bank_change_co_approved",
         "policy_ref": "FIN-POL-004 \u00a72",
-        "satisfied": true,
-        "detail": "no bank-detail change inside the 30-day window",
-        "citations": []
-      },
-      {
-        "rule": "segregation_of_duties",
-        "policy_ref": "FIN-POL-001 \u00a74",
-        "satisfied": true,
-        "detail": "requester and vendor creator are different people",
+        "satisfied": false,
+        "detail": "bank details changed on 2024-10-11; no settled payment has followed",
         "citations": []
       },
       {
         "rule": "legal_name_agreement",
-        "policy_ref": "FIN-POL-004 \u00a74",
+        "policy_ref": "FIN-POL-004 \u00a71",
         "satisfied": true,
         "detail": "invoice vendor name matches the master record",
+        "citations": []
+      },
+      {
+        "rule": "payment_instructions_match_vendor_master",
+        "policy_ref": "FIN-POL-001 \u00a75",
+        "satisfied": true,
+        "detail": "No payment instructions were asserted in the case notes or attachments, so nothing contradicts the vendor master.",
+        "citations": []
+      },
+      {
+        "rule": "segregation_of_duties_partial",
+        "policy_ref": "FIN-POL-001 \u00a74",
+        "satisfied": true,
+        "detail": "Nothing comparable at reconciliation: the invoice is at or below 25000 AUD, so the three-party rule does not apply. Pending an approver: the five-business-day bar on the vendor's creator approving, which needs an approver.",
+        "citations": []
+      },
+      {
+        "rule": "tax_assessed_separately",
+        "policy_ref": "FIN-POL-002 \u00a72",
+        "satisfied": true,
+        "detail": "stated tax 600.00 AUD agrees with 10% of the net within 0.05 AUD",
+        "citations": []
+      },
+      {
+        "rule": "agreed_payment_terms_applied",
+        "policy_ref": "FIN-POL-006 \u00a71",
+        "satisfied": true,
+        "detail": "30 days from FIN-POL-006 \u00a71 default of 30 calendar days",
+        "citations": []
+      },
+      {
+        "rule": "due_date_computed_from_agreed_terms",
+        "policy_ref": "FIN-POL-006 \u00a71",
+        "satisfied": true,
+        "detail": "2026-09-08 plus 30 calendar days from FIN-POL-006 \u00a71 default of 30 calendar days gives 2026-10-08. Weekends only: the corpus references public holidays and supplies no calendar, so none is applied.",
+        "citations": []
+      },
+      {
+        "rule": "scheduled_for_a_standard_payment_run",
+        "policy_ref": "FIN-POL-006 \u00a72",
+        "satisfied": true,
+        "detail": "proposed run 2026-10-08, the last standard run on or before 2026-10-08. Proposal only: under FIN-POL-006 \u00a74 an agent may prepare a schedule and may not release a payment file.",
         "citations": []
       },
       {
@@ -394,10 +522,17 @@
         "citations": []
       },
       {
+        "rule": "second_approval_required",
+        "policy_ref": "FIN-POL-003 \u00a73",
+        "satisfied": false,
+        "detail": "higher-risk transaction: two approvals are required, one from Financial Control, and the normal monetary limit still applies",
+        "citations": []
+      },
+      {
         "rule": "outcome_determined_deterministically",
         "policy_ref": "FIN-POL-002 \u00a75",
         "satisfied": true,
-        "detail": "The outcome was computed by the rule engine from typed facts. MISSING_PO: three_way_match.purchase_order_present; missing or contradictory evidence results in a hold, not a guessed conclusion",
+        "detail": "The outcome was computed by the rule engine from typed facts. MISSING_PO: three_way_match.purchase_order_present; BANK_CHANGE: vendor_status_check.first_payment_after_bank_change; MISSING_PO: three_way_match.purchase_order_present; BANK_CHANGE: vendor_status_check.first_payment_after_bank_change; missing or contradictory evidence results in a hold, not a guessed conclusion",
         "citations": []
       }
     ],
@@ -529,6 +664,36 @@
       ],
       "calculations": [
         {
+          "name": "invoice_internal_consistency",
+          "inputs": {
+            "invoice_net": "6000.00",
+            "sum_of_line_totals": "6000.00",
+            "rounding_slack": "0.01"
+          },
+          "formula": "invoice_net - sum(line_total)",
+          "result": "0.00",
+          "currency": "AUD",
+          "rounding": "ROUND_HALF_UP",
+          "policy_ref": "FIN-POL-001 \u00a72",
+          "passed": null,
+          "note": "The invoice against itself, not against the purchase order. A document that does not add up cannot produce a meaningful tolerance comparison."
+        },
+        {
+          "name": "tax_expected_at_configured_rate",
+          "inputs": {
+            "invoice_net": "6000.00",
+            "rate_percent": "10",
+            "invoice_tax": "600.00"
+          },
+          "formula": "invoice_net x rate_percent / 100",
+          "result": "600.00",
+          "currency": "AUD",
+          "rounding": "ROUND_HALF_UP",
+          "policy_ref": "FIN-POL-002 \u00a75",
+          "passed": null,
+          "note": "Assessed separately from the price comparison, as FIN-POL-002 \u00a72 requires. No clause in the corpus states a tax rate; the expected figure comes from configuration and this comparison is informational."
+        },
+        {
           "name": "required_approval_authority",
           "inputs": {
             "total_commitment": "6600.00",
@@ -546,7 +711,9 @@
         }
       ],
       "assumptions": [
-        "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved."
+        "Evidence absent from the supplied records is genuinely absent rather than merely unretrieved.",
+        "The expected tax rate is taken as 10% (Australian GST, matching the corpus jurisdiction). The policy corpus states no rate, so this is a configured assumption about the environment and no finding derived from it blocks a case.",
+        "The invoice date was used as the receipt date. FIN-POL-006 \u00a71 runs terms from receipt of a valid invoice, and no separate receipt timestamp is captured."
       ],
       "confidence": {
         "score": "0.62",
@@ -574,15 +741,30 @@
           "next_review_date": "2026-09-16",
           "detail": "Matching cannot be performed without the order. Under FIN-POL-012 \u00a71 a missing purchase order is not automatically an emergency; non-PO processing is limited to the categories listed there.",
           "blocking": true
+        },
+        {
+          "category": "BANK_CHANGE",
+          "failed_rule": "vendor_status_check.first_payment_after_bank_change",
+          "expected": "Financial Control co-approval for the first payment after a verified bank change, regardless of amount",
+          "observed": "vendor V-4004 bank details changed on 2024-10-11 and no paid or posted record exists on or after that date",
+          "owner": "VENDOR_GOVERNANCE",
+          "policy_refs": [
+            "FIN-POL-004 \u00a72",
+            "FIN-POL-003 \u00a73"
+          ],
+          "citations": [],
+          "next_review_date": "2026-09-16",
+          "detail": "The requirement attaches to the first subsequent payment, not to a window of days. Change instructions contained in an invoice, email or chat message are not sufficient evidence of a verified change.",
+          "blocking": true
         }
       ],
       "next_action": "Route the exception to the owner named in the exception record and resume the case from the failed control once new evidence arrives.",
       "requires_approval": false,
-      "requires_second_approval": false,
-      "second_approval_reason": ""
+      "requires_second_approval": true,
+      "second_approval_reason": "bank account changed on 2024-10-11 with no settled payment since, so this is the first payment after the change (FIN-POL-004 \u00a72)"
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T02:48:58.359122Z"
+    "completed_at": "2026-09-11T04:25:13.651722Z"
   },
   "decision": null,
   "events": [
@@ -619,7 +801,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "INTAKE",
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "next_phase": "RETRIEVE_POLICY",
         "steps_used": 1,
@@ -639,7 +821,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -651,7 +833,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 1,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -716,7 +898,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -728,7 +910,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 2,
       "payload": {
         "query": "delegated financial authority approval limits and when two approvals are required",
         "query_terms": [
@@ -790,7 +972,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -802,7 +984,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 1,
       "payload": {
         "query": "duplicate invoice detection matching fields and fraud indicators",
         "query_terms": [
@@ -864,7 +1046,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -876,7 +1058,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -940,7 +1122,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 22,
+      "duration_ms": 11,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -998,7 +1180,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "TIMEOUT",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "get_purchase_order",
         "attempt": 3,
@@ -1023,7 +1205,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 163,
+      "duration_ms": 159,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1070,12 +1252,72 @@
       "duration_ms": null,
       "payload": {
         "rule_group": "vendor_status_check",
-        "exception_count": 0,
-        "finding_count": 4
+        "exception_count": 1,
+        "finding_count": 3
       }
     },
     {
       "sequence": 25,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "payment_instructions",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 26,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "segregation_of_duties",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 27,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "tax_assessment",
+        "exception_count": 0,
+        "finding_count": 1
+      }
+    },
+    {
+      "sequence": 28,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "payment_terms",
+        "exception_count": 0,
+        "finding_count": 3
+      }
+    },
+    {
+      "sequence": 29,
+      "event_type": "RULE_EVALUATED",
+      "phase": "RECONCILE",
+      "outcome": "SUCCESS",
+      "duration_ms": null,
+      "payload": {
+        "rule_group": "repeated_non_po",
+        "exception_count": 0,
+        "finding_count": 0
+      }
+    },
+    {
+      "sequence": 30,
       "event_type": "EXCEPTION_RAISED",
       "phase": "RECONCILE",
       "outcome": "RAISED",
@@ -1092,11 +1334,28 @@
       }
     },
     {
-      "sequence": 26,
+      "sequence": 31,
+      "event_type": "EXCEPTION_RAISED",
+      "phase": "RECONCILE",
+      "outcome": "RAISED",
+      "duration_ms": null,
+      "payload": {
+        "category": "BANK_CHANGE",
+        "failed_rule": "vendor_status_check.first_payment_after_bank_change",
+        "owner": "VENDOR_GOVERNANCE",
+        "blocking": true,
+        "policy_refs": [
+          "FIN-POL-004 \u00a72",
+          "FIN-POL-003 \u00a73"
+        ]
+      }
+    },
+    {
+      "sequence": 32,
       "event_type": "PHASE_COMPLETED",
       "phase": "RECONCILE",
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 8,
       "payload": {
         "next_phase": "ASSESS_RISK",
         "steps_used": 4,
@@ -1104,7 +1363,7 @@
       }
     },
     {
-      "sequence": 27,
+      "sequence": 33,
       "event_type": "PHASE_STARTED",
       "phase": "ASSESS_RISK",
       "outcome": null,
@@ -1112,7 +1371,7 @@
       "payload": {}
     },
     {
-      "sequence": 28,
+      "sequence": 34,
       "event_type": "MODEL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
@@ -1122,16 +1381,16 @@
         "model": "fake-deterministic-1",
         "schema": "EvidenceSynthesis",
         "attempt": 1,
-        "input_tokens": 2044,
+        "input_tokens": 2167,
         "output_tokens": 120
       }
     },
     {
-      "sequence": 29,
+      "sequence": 35,
       "event_type": "PHASE_COMPLETED",
       "phase": "ASSESS_RISK",
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "next_phase": "RECOMMEND",
         "steps_used": 5,
@@ -1139,7 +1398,7 @@
       }
     },
     {
-      "sequence": 30,
+      "sequence": 36,
       "event_type": "PHASE_STARTED",
       "phase": "RECOMMEND",
       "outcome": null,
@@ -1147,7 +1406,7 @@
       "payload": {}
     },
     {
-      "sequence": 31,
+      "sequence": 37,
       "event_type": "MODEL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
@@ -1157,12 +1416,12 @@
         "model": "fake-deterministic-1",
         "schema": "RecommendationNarrative",
         "attempt": 1,
-        "input_tokens": 520,
+        "input_tokens": 871,
         "output_tokens": 120
       }
     },
     {
-      "sequence": 32,
+      "sequence": 38,
       "event_type": "RECOMMENDATION_READY",
       "phase": "RECOMMEND",
       "outcome": "HOLD_FOR_INFORMATION",
@@ -1170,8 +1429,9 @@
       "payload": {
         "outcome": "HOLD_FOR_INFORMATION",
         "requires_approval": false,
-        "requires_second_approval": false,
+        "requires_second_approval": true,
         "exception_categories": [
+          "BANK_CHANGE",
           "MISSING_PO"
         ],
         "indicator_codes": [],
@@ -1181,7 +1441,7 @@
       }
     },
     {
-      "sequence": 33,
+      "sequence": 39,
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
@@ -1193,7 +1453,7 @@
       }
     },
     {
-      "sequence": 34,
+      "sequence": 40,
       "event_type": "RUN_COMPLETED",
       "phase": "HELD",
       "outcome": "HELD",
@@ -1203,7 +1463,7 @@
         "outcome": "HOLD_FOR_INFORMATION",
         "steps_used": 6,
         "tool_calls_used": 9,
-        "exception_count": 1,
+        "exception_count": 2,
         "unknown_count": 1,
         "action_count": 0,
         "decision_ref": null

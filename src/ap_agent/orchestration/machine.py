@@ -83,6 +83,7 @@ from ap_agent.domain.rules.authority import required_authority, validate_approva
 from ap_agent.domain.rules.duplicates import duplicate_check
 from ap_agent.domain.rules.fraud import detect_injection, fraud_indicators
 from ap_agent.domain.rules.matching import three_way_match
+from ap_agent.domain.rules.non_po import check_repeated_non_po
 from ap_agent.domain.rules.outcome import decide_outcome
 from ap_agent.domain.rules.payment_instructions import check_payment_instructions
 from ap_agent.domain.rules.payment_terms import assess_payment_terms
@@ -476,12 +477,21 @@ class Orchestrator:
         validity = check_invoice_validity(
             invoice,
             invoice_date_supplied=request.invoice_date_supplied,
+            tax_separated=request.tax_separated,
+            # Read only to recognise a credit note, which holds the case. Untrusted text is
+            # never read here for anything that would let a case proceed.
+            texts=request.untrusted_texts(),
             as_of=self._clock(),
         )
         state.add_calculations(validity.calculations)
         state.add_findings(validity.findings)
         state.add_exceptions(validity.exceptions)
-        state.invalid_reasons.extend(validity.invalid_reasons)
+        # Deduplicated, like every other accumulator on the run state. A crash between this
+        # handler and the state being saved re-enters INTAKE on resume, and without this the
+        # same reason would appear twice in the rejection.
+        for reason in validity.invalid_reasons:
+            if reason not in state.invalid_reasons:
+                state.invalid_reasons.append(reason)
 
     def _phase_retrieve_policy(
         self,
@@ -755,7 +765,11 @@ class Orchestrator:
         )
         state.payable_on = terms.payable_on
         state.proposed_payment_run = terms.proposed_run_date
-        state.settlement_on_non_business_day = terms.settlement_on_non_business_day
+        state.due_date_on_non_business_day = terms.due_date_on_non_business_day
+        # FIN-POL-012 §4, the one control in the corpus about a pattern rather than a
+        # transaction: repeated non-PO invoicing by one supplier. The history the duplicate
+        # check already retrieved carries everything it needs.
+        non_po = check_repeated_non_po(invoice, state.invoice_history, as_of=as_of)
         # Only the part of FIN-POL-001 §4 that does not need an approver. The rest is
         # evaluated when a callback arrives; see domain/rules/segregation.py.
         segregation = check_segregation_at_reconciliation(
@@ -773,6 +787,7 @@ class Orchestrator:
             ("segregation_of_duties", segregation),
             ("tax_assessment", tax),
             ("payment_terms", terms),
+            ("repeated_non_po", non_po),
         ):
             state.add_exceptions(list(result.exceptions))
             state.add_findings(list(result.findings))
@@ -1036,10 +1051,6 @@ class Orchestrator:
             vendor=state.vendor,
             texts=case_texts,
             history=state.invoice_history,
-            # Computed by the payment-terms rule during reconciliation. The weekend
-            # indicator is about the settlement date, not about when this run happened to
-            # execute.
-            settlement_on_non_business_day=state.settlement_on_non_business_day,
             as_of=as_of,
         )
         state.add_indicators(indicators)
@@ -1495,9 +1506,9 @@ class Orchestrator:
         # budget on a question already answered, and re-deriving the verdict invites a
         # different answer if the register changed in between. A duplicate delivery must be
         # inert, not merely harmless.
-        settled = self._short_circuit_settled(state, emitter, approval, decision, status)
-        if settled is not None:
-            return settled
+        replay = self._short_circuit_replay(state, emitter, approval, decision, status)
+        if replay is not None:
+            return replay
 
         # Authority is validated before a signature is accepted, not after. An approver
         # without sufficient authority has not approved anything, so recording the signature
@@ -1683,7 +1694,7 @@ class Orchestrator:
         state = self._repository.save_run(state)
         return self._drive(state, emitter), replayed
 
-    def _short_circuit_settled(
+    def _short_circuit_replay(
         self,
         state: RunState,
         emitter: EventEmitter,
@@ -1691,15 +1702,43 @@ class Orchestrator:
         decision: ApprovalDecision,
         status: ApprovalStatus,
     ) -> tuple[RunState, bool] | None:
-        """Handle a delivery against an approval that is already settled.
+        """Handle a delivery that changes nothing, before anything is spent on it.
 
         Returns the answer when the delivery is a replay, and raises when it contradicts a
-        settled decision. Returns ``None`` when the approval is still open and the caller
+        settled decision. Returns ``None`` when the delivery has work to do and the caller
         should proceed.
 
-        One approver approving and another rejecting the same request is a real
-        disagreement, so it raises rather than being resolved by arrival order.
+        One approver approving and another rejecting the same request is a real disagreement,
+        so it raises rather than being resolved by arrival order.
+
+        The first test is the approver's own signature, and it comes before the status tests
+        deliberately. An earlier version asked only whether the approval was settled, so a
+        repeated delivery against a *pending* two-signature approval — the commonest retry
+        there is, since the caller has not seen the gate open — spent a tool call re-reading
+        the authority register and re-validated authority before the signature table's primary
+        key detected the duplicate. Nothing was recorded twice, but the claim made in three
+        places that a duplicate delivery performs no validation and no tool call was untrue
+        for exactly the case where retries are most likely.
         """
+        if status is ApprovalStatus.APPROVED and any(
+            signature.approver_id == decision.approver_id for signature in approval.signatures
+        ):
+            emitter.emit(
+                EventType.APPROVAL_REPLAYED,
+                payload={
+                    "approval_id": approval.approval_id,
+                    "status": approval.status.value,
+                    "approver_id": decision.approver_id,
+                    "signatures_collected": approval.signatures_collected,
+                    "note": (
+                        "this approver has already signed; no validation, no tool call, no "
+                        "state change"
+                    ),
+                },
+                phase=state.phase,
+                outcome="REPLAYED",
+            )
+            return self._repository.require_run(state.run_id), True
         if approval.status is ApprovalStatus.REJECTED:
             if status is ApprovalStatus.REJECTED:
                 emitter.emit(
@@ -1725,20 +1764,9 @@ class Orchestrator:
                     f"approval {approval.approval_id} is already APPROVED and cannot be "
                     "changed to REJECTED"
                 )
-            already = {signature.approver_id for signature in approval.signatures}
-            if decision.approver_id in already:
-                emitter.emit(
-                    EventType.APPROVAL_REPLAYED,
-                    payload={
-                        "approval_id": approval.approval_id,
-                        "status": approval.status.value,
-                        "approver_id": decision.approver_id,
-                        "note": "this approver has already signed; no state change",
-                    },
-                    phase=state.phase,
-                    outcome="REPLAYED",
-                )
-                return self._repository.require_run(state.run_id), True
+            # A repeat from an approver who already signed was answered above, whatever the
+            # status. Reaching here means a *different* person is approving something already
+            # settled, which is not a replay: the requirement was met without them.
             raise ApprovalStateConflict(
                 f"approval {approval.approval_id} is already APPROVED; its signature "
                 "requirement was met and the decision has been settled"

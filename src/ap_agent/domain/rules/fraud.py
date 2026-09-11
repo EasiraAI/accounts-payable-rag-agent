@@ -118,6 +118,31 @@ _MANUAL_PAYMENT_TERMS: Final[tuple[str, ...]] = (
     "telegraphic transfer",
 )
 
+#: Wording that asks for settlement outside the standard payment cycle. FIN-POL-006 §2 runs
+#: payments on Tuesday and Thursday, so a request naming a weekend, a day that is not a run
+#: day, or "out of hours" is a request to leave that cycle.
+_OUT_OF_CYCLE_TERMS: Final[tuple[str, ...]] = (
+    "weekend",
+    "saturday",
+    "sunday",
+    "out of hours",
+    "out-of-hours",
+    "after hours",
+    "after-hours",
+    "public holiday",
+)
+
+#: Wording that asks for settlement now. A same-day request settles on the day it is made, so
+#: for these the processing date *is* the settlement date and its weekday is the relevant fact.
+_SAME_DAY_TERMS: Final[tuple[str, ...]] = (
+    "same day",
+    "same-day",
+    "today",
+    "immediately",
+    "right now",
+    "straight away",
+)
+
 #: Round-dollar threshold. FIN-POL-005 §3 refers to "repeated round-dollar invoices", so the
 #: indicator requires a prior round-dollar record for the same vendor.
 _ROUND_DOLLAR_MODULUS: Final = Decimal("1000")
@@ -165,7 +190,6 @@ def fraud_indicators(
     vendor: VendorRecord | None,
     texts: Sequence[UntrustedText],
     history: Sequence[InvoiceHistoryMatch] = (),
-    settlement_on_non_business_day: bool = False,
     as_of: datetime,
 ) -> list[FraudIndicator]:
     """Collect the FIN-POL-005 §3 indicators present in a case.
@@ -220,33 +244,49 @@ def fraud_indicators(
                 POLICY_INDICATORS,
                 text.origin,
             )
-        manual = _contains_any(text.content, _MANUAL_PAYMENT_TERMS)
-        # FIN-POL-005 §3 names a "weekend manual-payment request". Two facts make one: the
-        # request has to be for a manual or same-day payment, and the settlement it asks for
-        # has to fall outside business days.
+        # FIN-POL-005 §3 names a "weekend manual-payment request", and every word of that
+        # is load-bearing. It is a *request*: something the supplier or requester asked for,
+        # in the case text. So the test is what the text asks for, in two forms:
         #
-        # An earlier version tested ``as_of.weekday() >= 5``, which is the weekday of the
-        # *run*. That made the indicator an accident of scheduling: the same case escalated
-        # when the batch happened to run on a Sunday and did not when it ran on a Monday, and
-        # a request for weekend settlement submitted on a Tuesday could never be an indicator
-        # at all. The settlement date is the fact the policy is about, so it is computed by
-        # the payment-terms rule from the invoice and the agreed terms, and passed in.
-        if manual and (settlement_on_non_business_day or as_of.weekday() >= 5):
-            occasion = (
-                "the payment would settle on a non-business day"
-                if settlement_on_non_business_day
-                else f"the request is being processed on {as_of.strftime('%A')}"
+        #   - it names a weekend, a public holiday or out-of-hours settlement outright; or
+        #   - it asks for same-day settlement on a day that is not a business day, where the
+        #     settlement date and the processing date are necessarily the same.
+        #
+        # Two earlier versions got this wrong in instructive ways. The first tested only the
+        # run's weekday, which made the indicator an accident of batch scheduling: the same
+        # case escalated on a Sunday run and not on a Monday one, and weekend settlement asked
+        # for on a Tuesday could never be an indicator at all. The second keyed off the
+        # computed due date, which is worse than it sounds — the due date is the invoice date
+        # plus the agreed terms, it falls on a weekend for two invoices in seven, and
+        # FIN-POL-006 §2 moves that payment to the *preceding* business day, so the flag
+        # announced a weekend settlement that the same calculation had already prevented. Any
+        # remittance note mentioning a wire transfer, on an unlucky due date, became one
+        # indicator short of escalation.
+        manual = _contains_any(text.content, _MANUAL_PAYMENT_TERMS)
+        if manual:
+            out_of_cycle = _contains_any(text.content, _OUT_OF_CYCLE_TERMS)
+            same_day = _contains_any(text.content, _SAME_DAY_TERMS)
+            asks_for_non_business_day = bool(out_of_cycle) or (
+                bool(same_day) and as_of.weekday() >= 5
             )
-            add(
-                "WEEKEND_MANUAL_PAYMENT_REQUEST",
-                (
-                    f"Manual or same-day payment requested ({', '.join(manual)}) and "
-                    f"{occasion}. FIN-POL-006 §3 requires Treasury approval and Financial "
-                    "Control co-approval for a manual or same-day payment."
-                ),
-                POLICY_INDICATORS,
-                text.origin,
-            )
+            if asks_for_non_business_day:
+                occasion = (
+                    f"the text asks for settlement outside the payment cycle "
+                    f"({', '.join(out_of_cycle)})"
+                    if out_of_cycle
+                    else f"same-day settlement is requested and today is {as_of.strftime('%A')}"
+                )
+                add(
+                    "WEEKEND_MANUAL_PAYMENT_REQUEST",
+                    (
+                        f"Manual payment requested ({', '.join(manual)}) and {occasion}. "
+                        "FIN-POL-006 §3 requires Treasury approval and Financial Control "
+                        "co-approval for a manual or same-day payment, and states that "
+                        "supplier urgency is not sufficient grounds."
+                    ),
+                    POLICY_INDICATORS,
+                    text.origin,
+                )
         if _contains_any(
             text.content, ("bank account has changed", "new account", "update our bank")
         ):

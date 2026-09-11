@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -168,8 +169,22 @@ class ProcessingRequest(BaseModel):
         an unrecognised vendor as missing evidence rather than as a match against the wrong
         record.
         """
-        net = self.net_amount if self.net_amount is not None else self.amount
-        tax = self.tax_amount if self.tax_amount is not None else self.amount - net
+        # Three cases, and the middle one used to be wrong. With both components the
+        # request is taken as submitted. With neither, the gross stands in for the net and
+        # the tax assessment records that it could not be separated. With only the tax, the
+        # net is the remainder: an earlier version fell through to ``net = amount`` here, so
+        # an invoice submitted as a gross of 1,100 with 100 of tax was read as a net of 1,100
+        # *and* 100 of tax. That produced a false tax query, and, when lines were supplied,
+        # rejected a perfectly valid invoice for not adding up to a figure it never claimed.
+        if self.net_amount is not None:
+            net = self.net_amount
+            tax = self.tax_amount if self.tax_amount is not None else self.amount - net
+        elif self.tax_amount is not None:
+            tax = self.tax_amount
+            net = self.amount - tax
+        else:
+            net = self.amount
+            tax = Decimal("0.00")
         return Invoice(
             invoice_reference=self.invoice_reference,
             vendor_id=self.vendor_id or self.vendor,
