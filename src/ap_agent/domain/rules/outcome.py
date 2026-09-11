@@ -9,8 +9,7 @@ The five outcomes in FIN-POL-001 §3 are resolved in this order:
    is under sanctions review, or a risk flag or segregation conflict was found.
 2. ``REJECT_DUPLICATE`` when an exact match to a paid or posted record exists.
 3. ``REJECT_INVALID`` when the request itself is unusable.
-4. ``HOLD_FOR_INFORMATION`` when any blocking control failed, or a sub-threshold risk signal
-   was seen.
+4. ``HOLD_FOR_INFORMATION`` when any blocking control failed.
 5. ``APPROVE_FOR_POSTING`` only when every control passed.
 
 **Why escalation outranks duplicate rejection.** Both are terminal from the supplier's point
@@ -157,20 +156,25 @@ def decide_outcome(
             requires_approval=False,
             **common,  # type: ignore[arg-type]
         )
-    if indicator_count:
-        return OutcomeDecision(
-            outcome=Outcome.HOLD_FOR_INFORMATION,
-            reasons=[
-                f"{indicator_count} fraud indicator(s) below the escalation threshold: "
-                + ", ".join(indicator.code for indicator in indicators),
-                "recorded and held for review rather than referred to the control team",
-            ],
-            requires_approval=False,
-            **common,  # type: ignore[arg-type]
-        )
-
     # 5. Every control satisfied.
-    reasons = [
+    #
+    # A sub-threshold indicator count does not hold the invoice. FIN-POL-005 §3 sets the
+    # escalation threshold at two, and §4 states that a risk score is decision support only.
+    # An earlier version held on a single indicator, and a fixture run showed why that is
+    # wrong: a clean, fully matched invoice for a round amount was held on that alone. A
+    # control that stops ordinary invoices on one weak signal gets overridden until it is
+    # ignored, which leaves the organisation worse off than a control that reports the signal
+    # and lets the case proceed. The indicators stay on the record and on the approval
+    # request, so the approver sees them before deciding.
+    reasons = []
+    if indicator_count:
+        reasons.append(
+            f"{indicator_count} fraud indicator(s) recorded, below the escalation threshold "
+            f"of {ESCALATION_INDICATOR_THRESHOLD}: "
+            + ", ".join(indicator.code for indicator in indicators)
+            + " (reported to the approver, not treated as a control failure)"
+        )
+    reasons += [
         "three-way match within tolerance"
         if match.all_within_tolerance and match.po_present
         else "matching controls satisfied",

@@ -1,0 +1,70 @@
+{
+  "_comment": "Simulated vendor master. Dates may use relative tokens resolved against the run clock (see tools/mock_backends.py): @as_of, @as_of-2d, @as_of-400d. Relative tokens keep a fixture's intent stable over time; a literal date would make the FIN-003 bank change stop being recent as soon as the calendar moved past it. No full bank account appears anywhere: the vendor model holds only the last four digits.",
+  "vendors": {
+    "V-1001": {
+      "vendor_id": "V-1001",
+      "legal_name": "Brightline Industrial Supplies Pty Ltd",
+      "status": "ACTIVE",
+      "bank_account_last4": "4417",
+      "bank_country": "AU",
+      "bank_details_changed_at": "@as_of-880d",
+      "created_at": "@as_of-2645d",
+      "last_updated_at": "@as_of-41d",
+      "risk_flags": [],
+      "on_payment_hold": false,
+      "created_by": "U-1140"
+    },
+    "V-2002": {
+      "vendor_id": "V-2002",
+      "legal_name": "Kestrel Facilities Group Pty Ltd",
+      "status": "ACTIVE",
+      "bank_account_last4": "6620",
+      "bank_country": "AU",
+      "bank_details_changed_at": "@as_of-1220d",
+      "created_at": "@as_of-2190d",
+      "last_updated_at": "@as_of-95d",
+      "risk_flags": [],
+      "on_payment_hold": false,
+      "created_by": "U-1140"
+    },
+    "V-3003": {
+      "vendor_id": "V-3003",
+      "legal_name": "Meridian Site Services Pty Ltd",
+      "status": "ACTIVE",
+      "bank_account_last4": "8842",
+      "bank_country": "AU",
+      "bank_details_changed_at": "@as_of-2d",
+      "created_at": "@as_of-1460d",
+      "last_updated_at": "@as_of-2d",
+      "risk_flags": [],
+      "on_payment_hold": false,
+      "created_by": "U-1140"
+    },
+    "V-4004": {
+      "vendor_id": "V-4004",
+      "legal_name": "Ardent Mechanical Contractors Pty Ltd",
+      "status": "ACTIVE",
+      "bank_account_last4": "3095",
+      "bank_country": "AU",
+      "bank_details_changed_at": "@as_of-700d",
+      "created_at": "@as_of-1820d",
+      "last_updated_at": "@as_of-60d",
+      "risk_flags": [],
+      "on_payment_hold": false,
+      "created_by": "U-1140"
+    },
+    "V-5005": {
+      "vendor_id": "V-5005",
+      "legal_name": "Halden Logistics Pty Ltd",
+      "status": "BLOCKED",
+      "bank_account_last4": "1178",
+      "bank_country": "AU",
+      "bank_details_changed_at": null,
+      "created_at": "@as_of-15d",
+      "last_updated_at": "@as_of-1d",
+      "risk_flags": ["SANCTIONS_SCREENING_INCOMPLETE"],
+      "on_payment_hold": true,
+      "created_by": "U-5000"
+    }
+  }
+}

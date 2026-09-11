@@ -1,0 +1,20 @@
+{
+  "_comment": "Deterministic fault injection, keyed by case. This is how the reliability requirements are exercised by a fixture rather than only by a unit test with a patched function: FIN-004 genuinely cannot reach the purchasing system, and the run has to survive that and say so. Profiles are declarative so a reviewer can see which failure each case exercises without reading code.",
+  "profiles": {
+    "timeout_always": "Every attempt exceeds the tool timeout. Exercises the retry ceiling and the missing-evidence path.",
+    "transient_then_success": "The first attempt fails with a retryable error; the next succeeds. Exercises recovery inside the retry budget.",
+    "permanent_error": "Fails with a non-retryable error. Must not be retried, because the budget is needed by later controls.",
+    "not_found": "Returns no record. Distinct from an error: absence is evidence, and it produces a hold rather than a failure."
+  },
+  "cases": {
+    "FIN-004": {
+      "get_purchase_order": "timeout_always"
+    },
+    "FIN-004-TRANSIENT": {
+      "get_purchase_order": "transient_then_success"
+    },
+    "FIN-004-PERMANENT": {
+      "get_vendor_record": "permanent_error"
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "_comment": "Simulated invoice history covering paid, posted, held and rejected records, which is the full set FIN-POL-005 §1 requires a duplicate check to search. The tool returns candidates for a vendor; the rule engine classifies them. Keeping classification out of the tool means the matching rules are testable without any backend.",
+  "records": [
+    {
+      "record_id": "AP-2026-11841",
+      "invoice_reference": "INV-2026-0388",
+      "vendor_id": "V-2002",
+      "currency": "AUD",
+      "gross_amount": "9240.00",
+      "invoice_date": "@as_of-34d",
+      "status": "PAID",
+      "po_reference": "PO-77001",
+      "attachment_hashes": []
+    },
+    {
+      "record_id": "AP-2026-11702",
+      "invoice_reference": "INV-2026-0301",
+      "vendor_id": "V-2002",
+      "currency": "AUD",
+      "gross_amount": "9240.00",
+      "invoice_date": "@as_of-64d",
+      "status": "PAID",
+      "po_reference": "PO-77001",
+      "attachment_hashes": []
+    },
+    {
+      "record_id": "AP-2026-11340",
+      "invoice_reference": "INV-2026-0140",
+      "vendor_id": "V-1001",
+      "currency": "AUD",
+      "gross_amount": "7128.00",
+      "invoice_date": "@as_of-120d",
+      "status": "PAID",
+      "po_reference": "PO-88010",
+      "attachment_hashes": []
+    },
+    {
+      "record_id": "AP-2026-11955",
+      "invoice_reference": "INV-2026-0470",
+      "vendor_id": "V-1001",
+      "currency": "AUD",
+      "gross_amount": "2310.00",
+      "invoice_date": "@as_of-12d",
+      "status": "POSTED",
+      "po_reference": "PO-88099",
+      "attachment_hashes": []
+    },
+    {
+      "record_id": "AP-2026-11888",
+      "invoice_reference": "INV-2026-0421",
+      "vendor_id": "V-3003",
+      "currency": "AUD",
+      "gross_amount": "18700.00",
+      "invoice_date": "@as_of-48d",
+      "status": "PAID",
+      "po_reference": "PO-91001",
+      "attachment_hashes": []
+    },
+    {
+      "record_id": "AP-2026-11610",
+      "invoice_reference": "INV-2026-0255",
+      "vendor_id": "V-4004",
+      "currency": "AUD",
+      "gross_amount": "4180.00",
+      "invoice_date": "@as_of-88d",
+      "status": "REJECTED",
+      "po_reference": "PO-98880",
+      "attachment_hashes": []
+    },
+    {
+      "record_id": "AP-2026-11930",
+      "invoice_reference": "INV-2026-0444",
+      "vendor_id": "V-4004",
+      "currency": "AUD",
+      "gross_amount": "990.00",
+      "invoice_date": "@as_of-20d",
+      "status": "HELD",
+      "po_reference": null,
+      "attachment_hashes": []
+    }
+  ]
+}

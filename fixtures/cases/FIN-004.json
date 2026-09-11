@@ -1,0 +1,42 @@
+{
+  "_intent": "Missing evidence. The purchasing system times out on every attempt and no receipt exists. Expect bounded retries, the gap exposed as an unknown, a hold, and no approval request for payment.",
+  "expected": {
+    "outcome": "HOLD_FOR_INFORMATION",
+    "must_not_approve": true,
+    "expected_exception_categories": [
+      "MISSING_PO"
+    ],
+    "must_expose_unknowns_mentioning": [
+      "purchase order"
+    ],
+    "expected_tool_attempts": {
+      "get_purchase_order": 3
+    },
+    "expected_decision_count": 0,
+    "status": "HELD"
+  },
+  "request": {
+    "case_id": "FIN-004",
+    "invoice_reference": "INV-2026-0600",
+    "vendor": "Ardent Mechanical Contractors Pty Ltd",
+    "vendor_id": "V-4004",
+    "amount": "6600.00",
+    "net_amount": "6000.00",
+    "tax_amount": "600.00",
+    "currency": "AUD",
+    "po_reference": "PO-99001",
+    "requested_by": "U-2210",
+    "lines": [
+      {
+        "line_number": 1,
+        "description": "Emergency pump replacement labour",
+        "line_type": "SERVICE",
+        "quantity": "1",
+        "unit_price": "6000.00",
+        "line_total": "6000.00",
+        "po_line_number": 1
+      }
+    ],
+    "invoice_date": "2026-09-08"
+  }
+}

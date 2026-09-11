@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from ap_agent.domain.enums import VendorStatus
-from ap_agent.domain.evidence import Invoice, VendorRecord
+from ap_agent.domain.enums import InvoiceHistoryStatus, VendorStatus
+from ap_agent.domain.evidence import Invoice, InvoiceHistoryMatch, VendorRecord
 from ap_agent.domain.request import UntrustedText
 from ap_agent.domain.rules.fraud import (
     ESCALATION_INDICATOR_THRESHOLD,
@@ -186,12 +186,73 @@ class TestFraudIndicators:
         )
         assert "PAYMENT_TO_NEW_COUNTRY" in _codes(indicators)
 
-    def test_round_dollar_amount_alone_is_not_enough_to_escalate(self) -> None:
-        """A round amount is weak evidence; policy calls for repeated round-dollar invoices."""
+    def test_a_single_round_dollar_invoice_is_not_an_indicator(self) -> None:
+        """FIN-POL-005 §3 names "repeated round-dollar invoices", not one of them.
+
+        Firing on an isolated round amount held a clean fixture case on no evidence, so the
+        indicator requires a prior round-dollar record for the same vendor.
+        """
         indicators = fraud_indicators(
             invoice=_invoice(gross="10000.00"), vendor=_vendor(), texts=[], as_of=AS_OF
         )
-        assert len(indicators) < ESCALATION_INDICATOR_THRESHOLD
+        assert indicators == []
+
+    def test_a_repeated_round_dollar_amount_is_an_indicator(self) -> None:
+        prior = InvoiceHistoryMatch(
+            record_id="AP-2026-10001",
+            invoice_reference="INV-2026-0100",
+            vendor_id="V-2002",
+            currency="AUD",
+            gross_amount=Decimal("7000.00"),
+            invoice_date=AS_OF.date() - timedelta(days=40),
+            status=InvoiceHistoryStatus.PAID,
+        )
+        indicators = fraud_indicators(
+            invoice=_invoice(gross="10000.00"),
+            vendor=_vendor(),
+            texts=[],
+            history=[prior],
+            as_of=AS_OF,
+        )
+        assert "REPEATED_ROUND_DOLLAR_INVOICES" in _codes(indicators)
+
+    def test_a_round_amount_with_only_non_round_history_is_not_an_indicator(self) -> None:
+        prior = InvoiceHistoryMatch(
+            record_id="AP-2026-10002",
+            invoice_reference="INV-2026-0101",
+            vendor_id="V-2002",
+            currency="AUD",
+            gross_amount=Decimal("7248.35"),
+            invoice_date=AS_OF.date() - timedelta(days=40),
+            status=InvoiceHistoryStatus.PAID,
+        )
+        indicators = fraud_indicators(
+            invoice=_invoice(gross="10000.00"),
+            vendor=_vendor(),
+            texts=[],
+            history=[prior],
+            as_of=AS_OF,
+        )
+        assert indicators == []
+
+    def test_round_dollar_history_for_a_different_vendor_is_ignored(self) -> None:
+        prior = InvoiceHistoryMatch(
+            record_id="AP-2026-10003",
+            invoice_reference="INV-2026-0102",
+            vendor_id="V-9999",
+            currency="AUD",
+            gross_amount=Decimal("5000.00"),
+            invoice_date=AS_OF.date() - timedelta(days=10),
+            status=InvoiceHistoryStatus.PAID,
+        )
+        indicators = fraud_indicators(
+            invoice=_invoice(gross="10000.00"),
+            vendor=_vendor(),
+            texts=[],
+            history=[prior],
+            as_of=AS_OF,
+        )
+        assert indicators == []
 
     def test_every_indicator_cites_a_policy_reference_and_a_source(self) -> None:
         indicators = fraud_indicators(

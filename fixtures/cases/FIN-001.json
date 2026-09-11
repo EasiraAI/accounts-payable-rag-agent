@@ -1,0 +1,50 @@
+{
+  "_intent": "Valid three-way match. Invoice, purchase order and receipts agree; vendor active; policy requires an approver. Expect APPROVE_FOR_POSTING, a stop at the approval gate, then exactly one recorded decision.",
+  "expected": {
+    "outcome": "APPROVE_FOR_POSTING",
+    "status_before_approval": "AWAITING_APPROVAL",
+    "status_after_approval": "COMPLETED",
+    "requires_approval": true,
+    "must_not_record_decision_before_approval": true,
+    "expected_decision_count": 1
+  },
+  "approval": {
+    "approver_id": "U-3081",
+    "approver_role": "DEPARTMENT_DIRECTOR",
+    "comment": "Matched and receipted. Approved for posting."
+  },
+  "request": {
+    "case_id": "FIN-001",
+    "invoice_reference": "INV-2026-0451",
+    "vendor": "Brightline Industrial Supplies Pty Ltd",
+    "vendor_id": "V-1001",
+    "amount": "17952.00",
+    "net_amount": "16320.00",
+    "tax_amount": "1632.00",
+    "currency": "AUD",
+    "po_reference": "PO-88121",
+    "payment_terms_days": 30,
+    "requested_by": "U-2210",
+    "lines": [
+      {
+        "line_number": 1,
+        "description": "Industrial bearing assembly, 40mm",
+        "line_type": "GOODS",
+        "quantity": "120",
+        "unit_price": "96.00",
+        "line_total": "11520.00",
+        "po_line_number": 1
+      },
+      {
+        "line_number": 2,
+        "description": "Sealed drive coupling, type C",
+        "line_type": "GOODS",
+        "quantity": "40",
+        "unit_price": "120.00",
+        "line_total": "4800.00",
+        "po_line_number": 2
+      }
+    ],
+    "invoice_date": "2026-09-09"
+  }
+}

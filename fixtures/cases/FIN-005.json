@@ -1,0 +1,41 @@
+{
+  "_intent": "Duplicate approval. The same approval callback is delivered twice. Expect exactly one effective decision, identical response bodies, the second flagged as a replay.",
+  "expected": {
+    "outcome": "APPROVE_FOR_POSTING",
+    "status_after_approval": "COMPLETED",
+    "deliver_approval_twice": true,
+    "expected_decision_count": 1,
+    "second_response_must_be_replay": true,
+    "responses_must_be_identical": true
+  },
+  "approval": {
+    "approver_id": "U-7781",
+    "approver_role": "COST_CENTRE_MANAGER",
+    "delegation_id": "DEL-2026-0044",
+    "comment": "Approved under delegation DEL-2026-0044."
+  },
+  "request": {
+    "case_id": "FIN-005",
+    "invoice_reference": "INV-2026-0455",
+    "vendor": "Brightline Industrial Supplies Pty Ltd",
+    "vendor_id": "V-1001",
+    "amount": "11000.00",
+    "net_amount": "10000.00",
+    "tax_amount": "1000.00",
+    "currency": "AUD",
+    "po_reference": "PO-88122",
+    "requested_by": "U-2210",
+    "lines": [
+      {
+        "line_number": 1,
+        "description": "Hydraulic hose assembly, 25mm",
+        "line_type": "GOODS",
+        "quantity": "50",
+        "unit_price": "200.00",
+        "line_total": "10000.00",
+        "po_line_number": 1
+      }
+    ],
+    "invoice_date": "2026-09-09"
+  }
+}

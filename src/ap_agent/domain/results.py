@@ -253,7 +253,12 @@ class ApprovalRequest(BaseModel):
     presented_vendor: NonEmptyStr
     presented_exception_categories: list[ExceptionCategory] = Field(default_factory=list)
     presented_citations: list[Citation] = Field(default_factory=list)
+    #: Minimum role from the FIN-POL-003 §2 matrix, resolved when the request was created.
     required_role_minimum: str = ""
+    #: The FIN-POL-003 §3 conditions that made this a higher-risk transaction. Stored rather
+    #: than recomputed at approval time, because the conditions are evaluated against vendor
+    #: data as it stood when the case was assessed, and that data can change afterwards.
+    higher_risk_reasons: list[str] = Field(default_factory=list)
     requires_second_approval: bool = False
     created_at: datetime
     decided_at: datetime | None = None

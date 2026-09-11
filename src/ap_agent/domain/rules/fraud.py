@@ -37,7 +37,7 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict
 
-from ap_agent.domain.evidence import Invoice, VendorRecord
+from ap_agent.domain.evidence import Invoice, InvoiceHistoryMatch, VendorRecord
 from ap_agent.domain.request import UntrustedText
 
 #: FIN-POL-005 §3: "Escalate when two or more indicators occur".
@@ -118,10 +118,13 @@ _MANUAL_PAYMENT_TERMS: Final[tuple[str, ...]] = (
     "telegraphic transfer",
 )
 
-#: Round-dollar threshold. FIN-POL-005 §3 refers to "repeated round-dollar invoices"; a
-#: single one is weak evidence, which is why this indicator alone never reaches the
-#: escalation threshold.
+#: Round-dollar threshold. FIN-POL-005 §3 refers to "repeated round-dollar invoices", so the
+#: indicator requires a prior round-dollar record for the same vendor.
 _ROUND_DOLLAR_MODULUS: Final = Decimal("1000")
+
+
+def _is_round_dollar(amount: Decimal) -> bool:
+    return amount > 0 and amount % _ROUND_DOLLAR_MODULUS == 0
 
 
 class FraudIndicator(BaseModel):
@@ -161,14 +164,27 @@ def fraud_indicators(
     invoice: Invoice,
     vendor: VendorRecord | None,
     texts: Sequence[UntrustedText],
+    history: Sequence[InvoiceHistoryMatch] = (),
     as_of: datetime,
 ) -> list[FraudIndicator]:
     """Collect the FIN-POL-005 §3 indicators present in a case.
 
-    Indicators are deduplicated by code. Without that, an attacker could reach the
-    escalation threshold by repeating one signal across several attachments, and a single
-    genuine signal appearing in both the notes and an attachment would look like two
-    independent findings.
+    ``texts`` must contain only untrusted text belonging to **this case**: the request notes
+    and its attachments. Retrieved corpus documents do not belong here, even untrusted ones.
+
+    That distinction was found by running the fixtures rather than by reasoning about them.
+    An earlier version passed every retrieved untrusted document into this function, and the
+    duplicate-invoice case then escalated instead of being rejected: the evidence search had
+    surfaced an adversarial notice concerning an entirely different supplier, and its urgency
+    and injection language were counted as indicators against the case in hand. Indicators
+    describe a transaction. A document merely present in the corpus says nothing about this
+    one, and counting it would let any case be escalated by planting a document. Retrieved
+    untrusted documents are still screened and logged by the caller, which is where a corpus
+    hygiene problem belongs.
+
+    Indicators are deduplicated by code. Without that, an attacker could reach the escalation
+    threshold by repeating one signal across several attachments, and a single genuine signal
+    appearing in both the notes and an attachment would look like two independent findings.
     """
     found: dict[str, FraudIndicator] = {}
 
@@ -226,17 +242,29 @@ def fraud_indicators(
             )
 
     # ---- signals from the invoice ----------------------------------------------------
-    if invoice.gross_amount > 0 and invoice.gross_amount % _ROUND_DOLLAR_MODULUS == 0:
-        add(
-            "ROUND_DOLLAR_AMOUNT",
-            (
-                f"Gross amount {invoice.gross_amount} is an exact multiple of "
-                f"{_ROUND_DOLLAR_MODULUS}. Weak on its own; FIN-POL-005 §3 refers to repeated "
-                "round-dollar invoices."
-            ),
-            POLICY_INDICATORS,
-            f"invoice {invoice.invoice_reference}",
-        )
+    #
+    # FIN-POL-005 §3 names "repeated round-dollar invoices", not a single one. Requiring the
+    # repeat is not a softening of the control, it is the control as written: an isolated
+    # round amount is ordinary, particularly on service invoices, and firing on it held a
+    # clean fixture case on no evidence at all. The prior invoice history supplies the
+    # repetition test.
+    if _is_round_dollar(invoice.gross_amount):
+        prior_round = [
+            record
+            for record in history
+            if record.vendor_id == invoice.vendor_id and _is_round_dollar(record.gross_amount)
+        ]
+        if prior_round:
+            add(
+                "REPEATED_ROUND_DOLLAR_INVOICES",
+                (
+                    f"Gross amount {invoice.gross_amount} is an exact multiple of "
+                    f"{_ROUND_DOLLAR_MODULUS}, and {len(prior_round)} prior record(s) for this "
+                    "vendor are too: " + ", ".join(record.record_id for record in prior_round[:4])
+                ),
+                POLICY_INDICATORS,
+                f"invoice {invoice.invoice_reference} and invoice history",
+            )
 
     # ---- signals from the vendor master ----------------------------------------------
     if vendor is not None:

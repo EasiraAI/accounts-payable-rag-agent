@@ -187,8 +187,16 @@ class TestHold:
         )
         assert decision.outcome is Outcome.APPROVE_FOR_POSTING
 
-    def test_a_single_fraud_indicator_holds_rather_than_escalating(self) -> None:
-        """Below the threshold of two, the signal is recorded without a control referral."""
+    def test_a_single_fraud_indicator_is_reported_without_holding_the_invoice(self) -> None:
+        """Below the threshold of two, the signal is reported and the case proceeds.
+
+        This test asserted a hold in an earlier revision. A fixture run showed that reading
+        was wrong: a clean, fully matched invoice for a round amount was held on that single
+        weak signal alone. FIN-POL-005 §3 sets the escalation threshold at two, and §4 states
+        that a risk score is decision support only, so a sub-threshold indicator is recorded
+        and shown to the approver rather than treated as a control failure. A control that
+        stops ordinary invoices on one weak signal is overridden until it is ignored.
+        """
         decision = decide_outcome(
             match=_clean_match(),
             duplicates=_clean_duplicates(),
@@ -196,7 +204,11 @@ class TestHold:
             authority=_authority(),
             indicators=_indicators(1),
         )
-        assert decision.outcome is Outcome.HOLD_FOR_INFORMATION
+        assert decision.outcome is Outcome.APPROVE_FOR_POSTING
+        assert decision.indicator_count == 1
+        assert any("below the escalation threshold" in reason for reason in decision.reasons), (
+            "the indicator must still be visible in the recorded reasons"
+        )
 
 
 class TestEscalation:

@@ -35,6 +35,7 @@ from ap_agent.domain.errors import (
 )
 from ap_agent.domain.evidence import (
     Citation,
+    DelegationRecord,
     GoodsReceipt,
     Invoice,
     InvoiceHistoryMatch,
@@ -67,6 +68,7 @@ from ap_agent.domain.results import (
     SourcedFact,
     Unknown,
 )
+from ap_agent.domain.run_state import RunState, new_approval_id, new_run_id, utc_now
 
 __all__ = [
     "APAgentError",
@@ -83,6 +85,7 @@ __all__ = [
     "ConfidenceAssessment",
     "ConfigurationError",
     "DecisionReceipt",
+    "DelegationRecord",
     "DocumentStatus",
     "EscalationOwner",
     "EventType",
@@ -113,6 +116,7 @@ __all__ = [
     "RetrievedChunk",
     "RunNotFound",
     "RunPhase",
+    "RunState",
     "RunStatus",
     "RunView",
     "SourcedFact",
@@ -128,6 +132,9 @@ __all__ = [
     "VendorRecord",
     "VendorStatus",
     "minimum",
+    "new_approval_id",
+    "new_run_id",
     "percent_of",
     "quantize",
+    "utc_now",
 ]

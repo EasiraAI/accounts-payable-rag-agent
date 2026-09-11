@@ -1,0 +1,41 @@
+{
+  "_intent": "Duplicate invoice. Invoice number and amount match an already-paid record. Expect REJECT_DUPLICATE with both record identifiers cited, and no proposal to pay.",
+  "expected": {
+    "outcome": "REJECT_DUPLICATE",
+    "expected_exception_categories": [
+      "DUPLICATE_RISK"
+    ],
+    "must_not_propose_payment": true,
+    "must_cite_record_ids": [
+      "AP-2026-11841"
+    ]
+  },
+  "request": {
+    "case_id": "FIN-002",
+    "invoice_reference": "INV-2026-0388",
+    "vendor": "Kestrel Facilities Group Pty Ltd",
+    "vendor_id": "V-2002",
+    "amount": "9240.00",
+    "net_amount": "8400.00",
+    "tax_amount": "840.00",
+    "currency": "AUD",
+    "po_reference": "PO-77001",
+    "requested_by": "U-2210",
+    "notes": {
+      "content": "Supplier says this invoice is unpaid and has asked us to process it again.",
+      "origin": "case_notes"
+    },
+    "lines": [
+      {
+        "line_number": 1,
+        "description": "Monthly facilities cleaning, Tower B",
+        "line_type": "SERVICE",
+        "quantity": "1",
+        "unit_price": "8400.00",
+        "line_total": "8400.00",
+        "po_line_number": 1
+      }
+    ],
+    "invoice_date": "2026-09-10"
+  }
+}

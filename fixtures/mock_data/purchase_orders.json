@@ -1,0 +1,154 @@
+{
+  "_comment": "Simulated purchasing and receipting system. Receipts are recorded here and nowhere else: FIN-POL-002 §4 forbids inferring receipt from invoice wording, so a fixture with no receipt entry genuinely has no receipt evidence.",
+  "purchase_orders": {
+    "PO-88121": {
+      "po_reference": "PO-88121",
+      "vendor_id": "V-1001",
+      "currency": "AUD",
+      "total_value": "16320.00",
+      "approval_status": "APPROVED",
+      "approved_by": "U-3081",
+      "permits_currency_conversion": false,
+      "payment_terms_days": 30,
+      "lines": [
+        {
+          "line_number": 1,
+          "description": "Industrial bearing assembly, 40mm",
+          "line_type": "GOODS",
+          "quantity_ordered": "120",
+          "unit_price": "96.00",
+          "line_value": "11520.00",
+          "permits_freight": false,
+          "service_completion_confirmed": false
+        },
+        {
+          "line_number": 2,
+          "description": "Sealed drive coupling, type C",
+          "line_type": "GOODS",
+          "quantity_ordered": "40",
+          "unit_price": "120.00",
+          "line_value": "4800.00",
+          "permits_freight": false,
+          "service_completion_confirmed": false
+        }
+      ],
+      "receipts": [
+        {
+          "receipt_id": "GR-55010",
+          "po_line_number": 1,
+          "quantity_received": "120",
+          "received_date": "@as_of-4d",
+          "receipted_by": "U-2210"
+        },
+        {
+          "receipt_id": "GR-55011",
+          "po_line_number": 2,
+          "quantity_received": "40",
+          "received_date": "@as_of-4d",
+          "receipted_by": "U-2210"
+        }
+      ]
+    },
+    "PO-88122": {
+      "po_reference": "PO-88122",
+      "vendor_id": "V-1001",
+      "currency": "AUD",
+      "total_value": "10000.00",
+      "approval_status": "APPROVED",
+      "approved_by": "U-3081",
+      "permits_currency_conversion": false,
+      "payment_terms_days": 30,
+      "lines": [
+        {
+          "line_number": 1,
+          "description": "Hydraulic hose assembly, 25mm",
+          "line_type": "GOODS",
+          "quantity_ordered": "50",
+          "unit_price": "200.00",
+          "line_value": "10000.00",
+          "permits_freight": false,
+          "service_completion_confirmed": false
+        }
+      ],
+      "receipts": [
+        {
+          "receipt_id": "GR-55120",
+          "po_line_number": 1,
+          "quantity_received": "50",
+          "received_date": "@as_of-3d",
+          "receipted_by": "U-2210"
+        }
+      ]
+    },
+    "PO-77001": {
+      "po_reference": "PO-77001",
+      "vendor_id": "V-2002",
+      "currency": "AUD",
+      "total_value": "8400.00",
+      "approval_status": "APPROVED",
+      "approved_by": "U-3081",
+      "permits_currency_conversion": false,
+      "payment_terms_days": 30,
+      "lines": [
+        {
+          "line_number": 1,
+          "description": "Monthly facilities cleaning, Tower B",
+          "line_type": "SERVICE",
+          "quantity_ordered": "1",
+          "unit_price": "8400.00",
+          "line_value": "8400.00",
+          "permits_freight": false,
+          "service_completion_confirmed": true
+        }
+      ],
+      "receipts": []
+    },
+    "PO-91004": {
+      "po_reference": "PO-91004",
+      "vendor_id": "V-3003",
+      "currency": "AUD",
+      "total_value": "22500.00",
+      "approval_status": "APPROVED",
+      "approved_by": "U-3081",
+      "permits_currency_conversion": false,
+      "payment_terms_days": 30,
+      "lines": [
+        {
+          "line_number": 1,
+          "description": "Site remediation works, stage 2",
+          "line_type": "SERVICE",
+          "quantity_ordered": "1",
+          "unit_price": "22500.00",
+          "line_value": "22500.00",
+          "permits_freight": false,
+          "service_completion_confirmed": true
+        }
+      ],
+      "receipts": []
+    },
+    "PO-99001": {
+      "_comment": "Present in the store but unreachable for FIN-004: the fault profile makes get_purchase_order time out on every attempt. Defining the record proves the case exercises a transport failure and not a missing-data path.",
+      "po_reference": "PO-99001",
+      "vendor_id": "V-4004",
+      "currency": "AUD",
+      "total_value": "6000.00",
+      "approval_status": "APPROVED",
+      "approved_by": "U-3081",
+      "permits_currency_conversion": false,
+      "payment_terms_days": 30,
+      "lines": [
+        {
+          "line_number": 1,
+          "description": "Emergency pump replacement labour",
+          "line_type": "SERVICE",
+          "quantity_ordered": "1",
+          "unit_price": "6000.00",
+          "line_value": "6000.00",
+          "permits_freight": false,
+          "service_completion_confirmed": false
+        }
+      ],
+      "receipts": []
+    }
+  }
+}
