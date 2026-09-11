@@ -417,6 +417,9 @@ scripts/                 setup, sample rendering, credential sweep
 | [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) | What to improve next, in priority order |
 | [docs/references.md](docs/references.md) | Papers, standards and documentation consulted |
 | [docs/samples/](docs/samples/) | Transcripts for a successful flow and an exception flow, plus the evaluation report |
+| [docs/specs/](docs/specs/) | The design as proposed, before implementation. Historical; kept for the alternatives it weighs |
+| [docs/plans/](docs/plans/) | The implementation plan and the review question each phase gate asks. Historical |
+| [docs/AI_USAGE_DECLARATION.md](docs/AI_USAGE_DECLARATION.md) | Where AI assistance was used, how its output was controlled, and what the reviews caught |
 
 ## 16. Cost and cleanup
 
