@@ -1,0 +1,105 @@
+{
+  "description": "Golden retrieval set for the Northstar AP policy corpus. Each query is one a processing run actually issues, phrased the way a finance analyst would ask it rather than copied from the target section, so the set measures retrieval and not string equality. 'accept' lists every section that answers the query; a hit is any of them.",
+  "notes": [
+    "Hit@3 and MRR are the operative metrics. Hit@1 is reported but is not the gate: the agent consumes a top-k window, not a single chunk, so a target at rank 2 with the authority section also present is a successful retrieval for this architecture.",
+    "The two safety assertions are absolute rather than statistical: the distractor must never appear in a policy result, and the current authority matrix must always outrank the superseded one."
+  ],
+  "queries": [
+    {
+      "id": "Q01",
+      "text": "goods line price variance tolerance limit",
+      "accept": ["FIN-POL-002 §2"],
+      "purpose": "three-way match tolerance band"
+    },
+    {
+      "id": "Q02",
+      "text": "what is the maximum amount a department director may approve",
+      "accept": ["FIN-POL-003 §2"],
+      "purpose": "delegated authority limit"
+    },
+    {
+      "id": "Q03",
+      "text": "how are exact duplicate invoices matched against history",
+      "accept": ["FIN-POL-005 §1"],
+      "purpose": "duplicate detection fields"
+    },
+    {
+      "id": "Q04",
+      "text": "verifying a supplier request to change bank account details",
+      "accept": ["FIN-POL-004 §2"],
+      "purpose": "bank change verification"
+    },
+    {
+      "id": "Q05",
+      "text": "invoice received but no goods receipt recorded",
+      "accept": ["FIN-POL-002 §4"],
+      "purpose": "missing receipt handling"
+    },
+    {
+      "id": "Q06",
+      "text": "which exception category should be used for an invoice problem",
+      "accept": ["FIN-POL-007 §1"],
+      "purpose": "exception taxonomy"
+    },
+    {
+      "id": "Q07",
+      "text": "converting a foreign currency invoice using the corporate daily rate",
+      "accept": ["FIN-POL-009 §2"],
+      "purpose": "FX conversion and rate citation"
+    },
+    {
+      "id": "Q08",
+      "text": "standard supplier payment terms and when payment runs happen",
+      "accept": ["FIN-POL-006 §1", "FIN-POL-006 §2"],
+      "purpose": "payment terms and scheduling"
+    },
+    {
+      "id": "Q09",
+      "text": "approval needed for an emergency purchase with no purchase order",
+      "accept": ["FIN-POL-012 §3", "FIN-POL-012 §2"],
+      "purpose": "non-PO and emergency approval"
+    },
+    {
+      "id": "Q10",
+      "text": "masking bank details and personal data in application logs",
+      "accept": ["FIN-POL-010 §2"],
+      "purpose": "safe logging"
+    },
+    {
+      "id": "Q11",
+      "text": "segregation of duties between creating a vendor and approving its invoice",
+      "accept": ["FIN-POL-001 §4"],
+      "purpose": "segregation of duties"
+    },
+    {
+      "id": "Q12",
+      "text": "evidence required before posting a month end accrual",
+      "accept": ["FIN-POL-011 §2"],
+      "purpose": "accrual evidence"
+    },
+    {
+      "id": "Q13",
+      "text": "applying a credit note against an open invoice for the same vendor",
+      "accept": ["FIN-POL-008 §2"],
+      "purpose": "credit note application order"
+    },
+    {
+      "id": "Q14",
+      "text": "when are two approvals required for a higher risk payment",
+      "accept": ["FIN-POL-003 §3"],
+      "purpose": "dual approval triggers"
+    },
+    {
+      "id": "Q15",
+      "text": "rounding method and stored inputs for a tolerance calculation",
+      "accept": ["FIN-POL-002 §5"],
+      "purpose": "calculation record requirements"
+    },
+    {
+      "id": "Q16",
+      "text": "vendor status values that require an invoice to be held",
+      "accept": ["FIN-POL-004 §4"],
+      "purpose": "vendor status handling"
+    }
+  ]
+}
