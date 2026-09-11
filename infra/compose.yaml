@@ -1,0 +1,54 @@
+# Local composition. One service, one named volume for state.
+#
+# No database service: the store is SQLite inside the volume. That is the deliberate
+# choice recorded in docs/adr/0004-persistence-and-idempotency.md, not an omission.
+# PostgreSQL is the production substitute and would appear here as a second service.
+
+services:
+  ap-agent:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    image: ap-agent:1.0.0
+    # Loopback only. The service has no authentication, so publishing it on a routable
+    # interface would expose the approval endpoints to anyone who can reach the host.
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Default to the deterministic adapter so the container needs no credential and
+      # makes no network call. Set AP_LLM_PROVIDER=anthropic and supply a key to use the
+      # live model.
+      AP_LLM_PROVIDER: ${AP_LLM_PROVIDER:-fake}
+      AP_LLM_MODEL: ${AP_LLM_MODEL:-claude-sonnet-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AP_LOG_LEVEL: ${AP_LOG_LEVEL:-INFO}
+      AP_LOG_FORMAT: json
+      AP_MAX_STEPS: "12"
+      AP_MAX_TOOL_CALLS: "16"
+    volumes:
+      # Only the state directory is writable. The corpus and source are baked into the
+      # image, so a running container cannot alter the policy it enforces.
+      - ap-agent-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  # Runs the fixture evaluation and exits. `docker compose run --rm evaluate`
+  evaluate:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    image: ap-agent:1.0.0
+    environment:
+      AP_LLM_PROVIDER: fake
+      AP_LOG_LEVEL: WARNING
+    command: ["ap-agent", "eval"]
+    profiles: ["tools"]
+
+volumes:
+  ap-agent-data:

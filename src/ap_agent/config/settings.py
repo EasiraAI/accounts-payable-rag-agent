@@ -45,8 +45,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
 
     # ---- Agent budget ---------------------------------------------------------------
+    #
+    # Both derived from the phase plan rather than chosen as round numbers, so exhausting
+    # either means something genuinely unexpected happened. See
+    # ap_agent.orchestration.phases for the attempt-by-attempt derivation.
     max_steps: int = Field(default=12, ge=1, le=100)
-    max_tool_calls: int = Field(default=10, ge=1, le=100)
+    max_tool_calls: int = Field(default=16, ge=1, le=100)
 
     # ---- Retrieval ------------------------------------------------------------------
     corpus_dir: Path = _REPO_ROOT / "finance_rag_corpus"
