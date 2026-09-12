@@ -72,7 +72,25 @@ is a better demonstration than a graph definition plus a dependency they must tr
 
 ## Consequences
 
-- `src/ap_agent/orchestration/` holds `phases.py` (the phase plan and its preconditions),
+- **The readability claim, kept honest.** This record's case for going framework-free is that a
+  reviewer can read the orchestration end to end. By the time the controls were complete,
+  `machine.py` had reached 2,154 lines and an audit was right that the argument no longer held.
+  It is now 722, with the seven phase handlers in `orchestration/phases/` and the approval
+  semantics, narrative screening, citations and summaries in modules of their own.
+
+  The part worth recording is why that took a protocol rather than a move. Each phase reached
+  into the orchestrator's privates, so extracting them without one would have handed every
+  module the orchestrator itself: a rename, not a decomposition. `phase_context.py` declares
+  four members, and a phase that receives only a context can reach only a clock, a repository,
+  a retriever and a model call. What a phase is capable of is now legible from its signature,
+  which is the same argument this system makes about bounded tools.
+
+  `_resolve` stays in `machine.py` at 192 lines. It calls the driver, the emitter and the
+  finaliser, so it is orchestration rather than a phase; the question a controls reviewer opens
+  it for, "may this person sign?", is a named function in `approvals.py`.
+
+- `src/ap_agent/orchestration/` holds `phases/` (the phase plan, its preconditions and the seven
+  handlers),
   `machine.py` (driver and transitions) and `gates.py` (budget and approval gate). The
   run-state model lives in `domain/run_state.py` rather than in this package: it is a typed
   contract that the API, the CLI and the persistence layer all read, so keeping it beside the

@@ -2,7 +2,7 @@
   "case_id": "FIN-005",
   "intent": "Duplicate approval. The same approval callback is delivered twice. Expect exactly one effective decision, identical response bodies, the second flagged as a replay.",
   "summary": {
-    "run_id": "run_bf04f4884fac4be3",
+    "run_id": "run_41a8092b4c77413f",
     "case_id": "FIN-005",
     "status": "COMPLETED",
     "phase": "COMPLETED",
@@ -12,7 +12,7 @@
     "exceptions": [],
     "indicators": [],
     "unknowns": 0,
-    "decision_ref": "DEC-78567CF99601",
+    "decision_ref": "DEC-20DB42ECFDDE",
     "failure_reason": null
   },
   "request": {
@@ -343,7 +343,7 @@
   },
   "final_result": {
     "case_id": "FIN-005",
-    "run_id": "run_bf04f4884fac4be3",
+    "run_id": "run_41a8092b4c77413f",
     "sourced_facts": [
       {
         "statement": "Invoice submitted for processing",
@@ -729,11 +729,11 @@
       {
         "action": "RECORD_APPROVE_FOR_POSTING",
         "target": "SIMULATED_ERP",
-        "performed_at": "2026-09-11T22:03:07.925221Z",
-        "reference": "DEC-78567CF99601",
-        "idempotency_key": "78567cf99601bea59d810703923a512a90a426055043961ce534635efbb70ac4",
+        "performed_at": "2026-09-12T04:06:16.338571Z",
+        "reference": "DEC-20DB42ECFDDE",
+        "idempotency_key": "20db42ecfdde92a692848a4c9ee110b53bc9c7f1ecffc8d293bb667ed61c9dd1",
         "simulated": true,
-        "detail": "Authorised by U-7781 (COST_CENTRE_MANAGER); approval apr_ee89badde7ce4f43 was granted by U-7781 (COST_CENTRE_MANAGER) for APPROVE_FOR_POSTING"
+        "detail": "Authorised by U-7781 (COST_CENTRE_MANAGER); approval apr_d1aabcc9e99e424d was granted by U-7781 (COST_CENTRE_MANAGER) for APPROVE_FOR_POSTING"
       }
     ],
     "recommendation": {
@@ -1035,17 +1035,17 @@
       "second_approval_reason": ""
     },
     "failure_reason": null,
-    "completed_at": "2026-09-11T22:03:07.927574Z"
+    "completed_at": "2026-09-12T04:06:16.340258Z"
   },
   "decision": {
-    "decision_ref": "DEC-78567CF99601",
-    "run_id": "run_bf04f4884fac4be3",
+    "decision_ref": "DEC-20DB42ECFDDE",
+    "run_id": "run_41a8092b4c77413f",
     "case_id": "FIN-005",
     "outcome": "APPROVE_FOR_POSTING",
     "amount": "11000.00",
     "currency": "AUD",
-    "idempotency_key": "78567cf99601bea59d810703923a512a90a426055043961ce534635efbb70ac4",
-    "recorded_at": "2026-09-11T22:03:07.925221Z",
+    "idempotency_key": "20db42ecfdde92a692848a4c9ee110b53bc9c7f1ecffc8d293bb667ed61c9dd1",
+    "recorded_at": "2026-09-12T04:06:16.338571Z",
     "simulated": true,
     "replayed": false,
     "posting_system": "SIMULATED_ERP"
@@ -1084,7 +1084,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "INTAKE",
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "next_phase": "RETRIEVE_POLICY",
         "steps_used": 1,
@@ -1116,7 +1116,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 3,
+      "duration_ms": 1,
       "payload": {
         "query": "three-way matching tolerance price variance quantity and goods receipt requirements",
         "query_terms": [
@@ -1181,7 +1181,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1193,7 +1193,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "delegated financial authority approval limits and when two approvals are required",
         "query_terms": [
@@ -1329,7 +1329,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "retrieve_finance_documents",
         "attempt": 1,
@@ -1341,7 +1341,7 @@
       "event_type": "RETRIEVAL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 2,
+      "duration_ms": 1,
       "payload": {
         "query": "vendor status values requiring a hold and verifying a bank account change",
         "query_terms": [
@@ -1405,7 +1405,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RETRIEVE_POLICY",
       "outcome": "SUCCESS",
-      "duration_ms": 16,
+      "duration_ms": 11,
       "payload": {
         "next_phase": "GATHER_EVIDENCE",
         "steps_used": 2,
@@ -1425,7 +1425,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "get_vendor_record",
         "attempt": 1,
@@ -1437,7 +1437,7 @@
       "event_type": "TOOL_CALL",
       "phase": null,
       "outcome": "SUCCESS",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
         "tool": "get_purchase_order",
         "attempt": 1,
@@ -1461,7 +1461,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "GATHER_EVIDENCE",
       "outcome": "SUCCESS",
-      "duration_ms": 8,
+      "duration_ms": 4,
       "payload": {
         "next_phase": "RECONCILE",
         "steps_used": 3,
@@ -1666,7 +1666,7 @@
       "outcome": "AWAITING_HUMAN_DECISION",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_ee89badde7ce4f43",
+        "approval_id": "apr_d1aabcc9e99e424d",
         "requested_outcome": "APPROVE_FOR_POSTING",
         "amount": "11000.00",
         "currency": "AUD",
@@ -1680,7 +1680,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "RECOMMEND",
       "outcome": "SUCCESS",
-      "duration_ms": 9,
+      "duration_ms": 5,
       "payload": {
         "next_phase": "AWAITING_APPROVAL",
         "steps_used": 6,
@@ -1706,7 +1706,7 @@
       "outcome": "APPROVED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_ee89badde7ce4f43",
+        "approval_id": "apr_d1aabcc9e99e424d",
         "decision": "APPROVED",
         "approver_id": "U-7781",
         "approver_role": "COST_CENTRE_MANAGER",
@@ -1733,9 +1733,9 @@
       "event_type": "DECISION_SUBMITTED",
       "phase": "EXECUTE_DECISION",
       "outcome": "RECORDED",
-      "duration_ms": 1,
+      "duration_ms": 0,
       "payload": {
-        "decision_ref": "DEC-78567CF99601",
+        "decision_ref": "DEC-20DB42ECFDDE",
         "outcome": "APPROVE_FOR_POSTING",
         "amount": "11000.00",
         "currency": "AUD",
@@ -1749,7 +1749,7 @@
       "event_type": "PHASE_COMPLETED",
       "phase": "EXECUTE_DECISION",
       "outcome": "SUCCESS",
-      "duration_ms": 4,
+      "duration_ms": 3,
       "payload": {
         "next_phase": "COMPLETED",
         "steps_used": 7,
@@ -1770,7 +1770,7 @@
         "exception_count": 0,
         "unknown_count": 0,
         "action_count": 1,
-        "decision_ref": "DEC-78567CF99601"
+        "decision_ref": "DEC-20DB42ECFDDE"
       }
     },
     {
@@ -1780,7 +1780,7 @@
       "outcome": "REPLAYED",
       "duration_ms": null,
       "payload": {
-        "approval_id": "apr_ee89badde7ce4f43",
+        "approval_id": "apr_d1aabcc9e99e424d",
         "status": "APPROVED",
         "approver_id": "U-7781",
         "signatures_collected": 1,

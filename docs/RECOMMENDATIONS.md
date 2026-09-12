@@ -164,32 +164,7 @@ None of that can be honoured without a queue that knows a case's age and owner. 
 records already carry the owner and the review date, so the data model is ready; what is
 missing is something that reads it and acts.
 
-## 12. Finish decomposing the orchestrator
-
-**Gap.** `orchestration/machine.py` is 1,826 lines. ADR-0002's case for going framework-free
-rests on a reviewer being able to read the orchestrator end to end, and an audit was right that
-the file had outgrown the argument. Three modules came out of it in the last pass
-(`narrative_screen.py`, `summaries.py`, `approvals.py`), which took it from 2,154, but the seven
-phase handlers and `_resolve` are still there, and `_resolve` alone is 221 lines.
-
-**Change.** Move each phase into `orchestration/phases/<name>.py` with the driver unchanged.
-The obstacle is not the phase bodies, it is what they reach for: the repository, the clock, the
-model client, the budget, the retriever, the tool runner and four orchestrator helpers. Handing
-each module the orchestrator would be a rename rather than a decomposition, so the work is to
-define a narrow `PhaseContext` protocol carrying exactly those collaborators, which also makes
-each phase testable without constructing a run.
-
-`_resolve` is the harder half and should stay last. It calls the driver, the emitter and the
-finaliser, so it is genuinely orchestration rather than a phase, and extracting it would move
-control flow away from the module named for it.
-
-**Why here.** It is a readability defect, not a correctness one, and the safety properties are
-tested where they are enforced rather than where they are written. But it sits above the
-retrieval items because a monolithic hotspot is where subtle regressions concentrate, and this
-codebase was written with heavy AI assistance, which makes that concentration more likely rather
-than less.
-
-## 13. Contextual chunk annotation, if paraphrase recall has to improve
+## 12. Contextual chunk annotation, if paraphrase recall has to improve
 
 **Gap.** Paraphrase recall is 0.38 and hybrid retrieval buys only 0.50 at the cost of direct
 precision, so neither option is currently worth switching on. The technique that would help
@@ -204,7 +179,7 @@ free of a provider. Measure on the paraphrase set; keep only if it moves.
 unlike the hybrid flag it costs nothing at query time. It is below the reliability items because
 0.38 is a measured cost of a deliberate choice, not a defect.
 
-## 14. Raise the tool budget derivation to account for a second signature
+## 13. Raise the tool budget derivation to account for a second signature
 
 **Gap.** The default of sixteen tool attempts is derived from the worst case of a single
 approval. A two-signature approval resolves twice, and each resolution naming a delegation
@@ -218,7 +193,7 @@ assert the derivation in a test so the two cannot drift again.
 **Why here.** It is a correctness issue in a documented number rather than in behaviour, and
 it is visible only at a configuration boundary a deployment would raise anyway.
 
-## 15. A configurable tax profile
+## 14. A configurable tax profile
 
 **Gap.** `domain/rules/tax.py` carries one rate, one tolerance and an implicit assumption that
 a domestic invoice is an Australian one. The corpus states a jurisdiction and no rate, so a
@@ -230,7 +205,7 @@ and the exempt categories a supply may claim. The rule reads the profile; nothin
 **Why here.** Nothing derived from the rate blocks a case today, so this buys correctness of
 reporting rather than of decisions. It becomes urgent the moment a second jurisdiction appears.
 
-## 16. Cost budgets per run
+## 15. Cost budgets per run
 
 Token counts are recorded per model call, so a per-run ceiling is a gate over data the system
 already has rather than new instrumentation. Add it when the live provider is the default;
@@ -290,6 +265,7 @@ anything.
 | The narrative screen was a list of eight phrases | Claims crossed with recorded state, and every figure crossed with the computed set | `orchestration/narrative_screen.py` |
 | Generation quality had no measure at all | `narrative_grounded` per case, reported beside the retrieval metrics | `evaluation/runner.py` |
 | A provider failure reported an internal error with an invented retry history | The provider's own message, and a permanent status named as permanent | `llm/anthropic_client.py` |
+| The orchestrator had outgrown ADR-0002's readability argument at 2,154 lines | 722, with the seven phases in `orchestration/phases/` behind a four-member context protocol | [adr/0002](adr/0002-orchestration-framework.md) |
 
 The pattern across them is worth naming, because it is the first thing I would look for in a
 system like this. Four of the ten were not missing code at all. They were fields or

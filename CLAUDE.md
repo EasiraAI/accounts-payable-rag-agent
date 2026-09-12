@@ -287,7 +287,8 @@ src/ap_agent/
   rag/          ingest, index, retriever
   tools/        six tool contracts, mocks, fault injection
   llm/          LLMClient protocol, anthropic_client, fake_client, prompts (fencing)
-  orchestration/ phases (plan and preconditions), machine, gates  (run state lives in domain/)
+  orchestration/ phases/ (plan, preconditions, seven handlers), machine (driver),
+                 gates, approvals, narrative_screen, citations, summaries, redaction
   persistence/  repository (SQLite)
   observability/ events, redact
   api/ cli/     FastAPI routes, Typer commands
@@ -337,7 +338,7 @@ The system is built and verified. Numbers below are reproduced by `ap-agent eval
 | Fixture cases | 5 of 5 (FIN-001 to FIN-005) |
 | Retrieval | Direct Hit@1 0.94, Hit@3 1.00, MRR 0.969 over 16; paraphrase Hit@3 0.38 over 8; 5 unanswerable, 0 leaks |
 | Generation | 5/5 narratives grounded; 10 adversarial rephrasings, 0 false negatives |
-| Type checking | mypy strict, 61 modules, clean |
+| Type checking | mypy strict, 71 modules, clean |
 | Lint | ruff, clean, including bandit and exception-handling rules |
 | Corpus | 15 documents, 58 section chunks |
 | Credential sweep | `scripts/secret_sweep.py`, 6 patterns, 0 findings |
