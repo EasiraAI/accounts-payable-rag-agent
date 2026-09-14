@@ -88,13 +88,14 @@ do next is in [RECOMMENDATIONS.md](RECOMMENDATIONS.md), in the order I would do 
 
 ## Tooling
 
-Claude (Anthropic), used through an agentic coding environment with repository-scoped
-configuration: task-specific review agents, reference notes carrying the policy thresholds and
-the trust-boundary rules, and pre-write checks that refuse a commit containing a
-credential-shaped or unmasked-account-shaped string. That configuration lives in `.claude/` and
-is part of the repository rather than a local setup, so the review gates described above are
-reproducible by anyone who opens it.
+A large language model, used through an agentic coding environment with repository-scoped
+configuration: task-specific review passes, reference notes carrying the policy thresholds and
+the trust-boundary rules, and pre-write checks that refused any file containing a
+credential-shaped or unmasked-account-shaped string.
 
-The `CLAUDE.md` at the repository root is the working specification for that environment: the
-brief's requirements, the binding architecture decisions, and the delivered state. It is
-addressed to whoever picks the work up next, human or otherwise.
+That configuration is not part of the delivered repository. It described how the work was
+produced rather than how the system behaves, and the two review gates worth keeping were
+rewritten as things anyone can run: `scripts/secret_sweep.py` for the credential check, and the
+CI workflow for the test, type and evaluation gates. `PROJECT_SPEC.md` at the repository root
+carries what survived of it that is about the system: the brief's requirements, the binding
+architecture decisions, and the delivered state.

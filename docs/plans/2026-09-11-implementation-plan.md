@@ -2,7 +2,7 @@
 
 Date: 2026-09-11. Timebox: 8 working hours. Spec: `docs/specs/2026-09-11-ap-agent-design.md`.
 
-Priority order follows CLAUDE.md §10: bounded loop and deterministic reconciliation,
+Priority order follows PROJECT_SPEC.md §10: bounded loop and deterministic reconciliation,
 approval gate and idempotent decision tool, RAG with citations and adversarial doc, five
 fixtures passing, persistence and resume, docs and diagram.
 
@@ -12,7 +12,7 @@ fixtures passing, persistence and resume, docs and diagram.
 reasoning behind the sequencing is worth more than a tidy record. Where the delivered system
 differs — it has five tables rather than four, twelve rule modules rather than six, and a
 second-signature gate this plan does not mention — the delivered state is described in
-CLAUDE.md §15 and in the README.
+PROJECT_SPEC.md §15 and in the README.
 
 Four practices apply throughout, and each exists because of a specific failure it prevents.
 
@@ -203,7 +203,7 @@ Exit: no "succeeded" attack vector; no swallowed exception around tool or model 
 ## Phase 9: Documentation and artefacts (7:20 to 8:00)
 
 Review gate: see the table above. Every number in the documentation has to reproduce from a
-command, and CLAUDE.md §11 and §15 have to match the delivered state rather than the plan.
+command, and PROJECT_SPEC.md §11 and §15 have to match the delivered state rather than the plan.
 
 Deliverables
 1. `README.md`: environment choice (local), prerequisites, env vars, model config,
@@ -220,10 +220,10 @@ Deliverables
 6. `docs/RECOMMENDATIONS.md`: what to improve next (from the limitations list).
 7. `docs/references.md` already drafted; confirm every entry is cited.
 8. `docs/AI_USAGE_DECLARATION.md`: written last, the only place that discusses authoring tools.
-9. Update `CLAUDE.md` §11 onward if any convention changed.
+9. Update `PROJECT_SPEC.md` §11 onward if any convention changed.
 
 Exit: every number in the documentation reproduced from a command; the deliverables
-checklist in CLAUDE.md §7 complete; the credential sweep clean.
+checklist in PROJECT_SPEC.md §7 complete; the credential sweep clean.
 
 ## Risk register
 
@@ -237,6 +237,6 @@ checklist in CLAUDE.md §7 complete; the credential sweep clean.
 
 ## Definition of done
 
-All items in CLAUDE.md §7 checked; five fixtures PASS with pasted output; the credential
+All items in PROJECT_SPEC.md §7 checked; five fixtures PASS with pasted output; the credential
 sweep clean; no unmasked bank data in tracked files; the dependency lock file present; every
 number in the documentation reproducible from a command.

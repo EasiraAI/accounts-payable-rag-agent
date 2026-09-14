@@ -1,8 +1,8 @@
-# CLAUDE.md — Agentic AI Engineer Take-Home: Financial Processing & RAG Workflow Agent
+# Project specification: Financial Processing and RAG Workflow Agent
 
-This file is the technical specification for an autonomous coding session. It captures every
-functional, architectural, and evaluation requirement from the take-home brief. It intentionally
-excludes anything about disclosing/declaring AI tool usage — that is tracked in a separate document.
+This file is the working specification: every functional, architectural and evaluation
+requirement taken from the brief, the architecture decisions that are binding for this
+repository, and the delivered state. It is addressed to whoever picks the work up next.
 
 ---
 
@@ -298,34 +298,27 @@ fixtures/cases fixtures/mock_data
 docs/adr docs/plans docs/specs docs/samples docs/diagrams
 scripts/                     setup, sample rendering, credential sweep
 infra/                      Dockerfile, compose
-.claude/                    agents, skills, hooks for this project (see §13)
 ```
 
-## 13. Working Agreements for Agentic Sessions
+## 13. Conventions this repository holds to
 
-- **Skills to load by task:** rule logic → `ap-policy-rules`; fixtures or evals →
-  `fixture-cases`, `run-evals`; prompts, tool schemas, logging → `trust-boundaries`;
-  any prose → `engineering-voice`.
-- **Reviewers to run:** `contracts-reviewer` after schema changes; `ap-controls-reviewer`
-  after rule or fixture changes; `rag-evaluator` after retrieval changes; `safety-red-team`
-  before claiming FIN-003 or FIN-005 pass and before delivery; `delivery-editor` last.
-- **TDD is the default.** Failing test first for every module in `domain/rules`, `tools`,
-  `persistence`, `orchestration`.
-- **Hooks are active:** `secret_guard` blocks writes containing keys or unmasked bank
-  numbers; `lint_python` formats on write; `stop_checklist` prints the definition of done.
-- **Never claim a fixture passes without pasting the eval command output.**
-- **Policy vocabulary only.** Outcomes and exception categories come from FIN-POL-001 §3
-  and FIN-POL-007 §1. Do not invent statuses.
-- **Corpus is read-only.** Ingestion reads `finance_rag_corpus/`; test data lives in
+- **A failing test first**, for every module in `domain/rules`, `tools`, `persistence` and
+  `orchestration`. On a system whose value is in its thresholds, a test written afterwards
+  tends to assert what the code does rather than what the policy says.
+- **Never claim a fixture passes without the command output.** A phase closes on pasted
+  output, not on a judgement that it looks done.
+- **Policy vocabulary only.** Outcomes and exception categories come from FIN-POL-001 §3 and
+  FIN-POL-007 §1. Do not invent statuses.
+- **The corpus is read-only.** Ingestion reads `finance_rag_corpus/`; test data lives in
   `fixtures/`.
 - **Money is `Decimal`.** A float in any monetary field is a bug.
+- **No credential-shaped string in the tree.** `scripts/secret_sweep.py` proves it rather than
+  asserting it, and runs in CI.
 
-## 14. Voice and Attribution
+## 14. Voice
 
-All deliverables use the `engineering-voice` skill: decisions first, reasons second,
-alternatives third, limitations stated plainly. Authoring tooling is not discussed in
-code, comments, commit messages or docs. The single exception is
-`docs/AI_USAGE_DECLARATION.md`, written as the final step.
+Decisions first, reasons second, alternatives third, limitations stated plainly. Every number
+in the documentation has to reproduce from a command.
 
 ## 15. Delivered State
 

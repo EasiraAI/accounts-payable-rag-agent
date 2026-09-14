@@ -3,7 +3,7 @@
 Date: 2026-09-11. **Status: historical** — this is the design as proposed, before
 implementation. It is kept because the alternatives it weighs are the reason the delivered
 shape is what it is. Where the two differ, the delivered state is described in the README and
-in CLAUDE.md §15; ADR-0006 and ADR-0007 record the two decisions taken after this was written.
+in PROJECT_SPEC.md §15; ADR-0006 and ADR-0007 record the two decisions taken after this was written.
 Decisions referenced: ADR-0001 to ADR-0005 in `docs/adr/`.
 
 ## 1. Goal
